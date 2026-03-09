@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
+@import "@fontsource/inter/900.css";
+
+@theme {
+  /* ── Accent (deep navy) ──────────────────────── */
+  --color-accent: #1E3A5F;
+  --color-accent-light: #2A4A73;
+  --color-accent-dark: #162D4A;
+
+  /* ── Surface tokens ──────────────────────────── */
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F7F5F2;
+
+  /* ── Gray palette (warm stone tones) ─────────── */
+  --color-gray-50: #FAFAF8;
+  --color-gray-100: #F3F1EE;
+  --color-gray-200: #E8E5E0;
+  --color-gray-300: #D5D0C8;
+  --color-gray-400: #A8A29E;
+  --color-gray-500: #78716C;
+  --color-gray-600: #57534E;
+  --color-gray-700: #44403C;
+  --color-gray-800: #292524;
+  --color-gray-900: #1C1917;
+
+  /* ── Semantic colors ─────────────────────────── */
+  --color-red-50: #FEF2F2;
+  --color-red-100: #FEE2E2;
+  --color-red-200: #FECACA;
+  --color-red-500: #EF4444;
+  --color-red-600: #DC2626;
+  --color-red-700: #B91C1C;
+
+  --color-amber-50: #FFFBEB;
+  --color-amber-100: #FEF3C7;
+  --color-amber-600: #D97706;
+  --color-amber-700: #B45309;
+
+  --color-green-50: #F0FDF4;
+  --color-green-100: #DCFCE7;
+  --color-green-600: #16A34A;
+  --color-green-700: #15803D;
+
+  --color-blue-50: #EFF6FF;
+  --color-blue-100: #DBEAFE;
+  --color-blue-700: #1D4ED8;
+
+  --color-yellow-50: #FEFCE8;
+  --color-yellow-400: #FACC15;
+  --color-yellow-500: #EAB308;
+
+  /* ── Typography ──────────────────────────────── */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  background-color: #FAFAF8;
+  color: #292524;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+input, select, textarea {
+  color-scheme: light;
+}
+
+/* ── Card shadows ──────────────────────────────── */
+.shadow-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+}
+.shadow-card-hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* ── Interactions ──────────────────────────────── */
+.btn-bounce:active {
+  transform: scale(0.96);
+}
+
+/* ── Animations ────────────────────────────────── */
+@keyframes fillUp {
+  from { height: 0%; }
+  to { height: var(--fill-height); }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bounceIn {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Custom scrollbar ──────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D5D0C8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
