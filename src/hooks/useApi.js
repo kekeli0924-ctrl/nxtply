@@ -2,13 +2,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_BASE = '/api';
 
+function notifyError(message) {
+  window.dispatchEvent(new CustomEvent('api-error', { detail: message }));
+}
+
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API ${res.status}: ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -39,8 +46,11 @@ export function useApiCollection(endpoint, initialValue = []) {
           setLoaded(true);
         }
       })
-      .catch(() => {
-        if (!cancelled) setLoaded(true);
+      .catch((err) => {
+        if (!cancelled) {
+          notifyError(`Failed to load data`);
+          setLoaded(true);
+        }
       });
     return () => { cancelled = true; };
   }, [endpoint]);
@@ -77,7 +87,10 @@ export function useApiSingleton(endpoint, initialValue) {
         }
       })
       .catch(() => {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) {
+          notifyError(`Failed to load data`);
+          setLoaded(true);
+        }
       });
     return () => { cancelled = true; };
   }, [endpoint]);
@@ -88,7 +101,8 @@ export function useApiSingleton(endpoint, initialValue) {
     prevRef.current = next;
     setValueInternal(next);
     // PUT to API in background (outside state updater to avoid StrictMode double-fire)
-    apiFetch(endpoint, { method: 'PUT', body: next }).catch(console.error);
+    apiFetch(endpoint, { method: 'PUT', body: next })
+      .catch((err) => notifyError(err.message));
   }, [endpoint]);
 
   return [value, setValue, loaded];
@@ -114,7 +128,10 @@ export function useApiStringList(endpoint, initialValue = []) {
         }
       })
       .catch(() => {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) {
+          notifyError(`Failed to load data`);
+          setLoaded(true);
+        }
       });
     return () => { cancelled = true; };
   }, [endpoint]);
@@ -128,10 +145,12 @@ export function useApiStringList(endpoint, initialValue = []) {
     const added = next.filter(x => !prev.includes(x));
     const removed = prev.filter(x => !next.includes(x));
     for (const name of added) {
-      apiFetch(endpoint, { method: 'POST', body: { name } }).catch(console.error);
+      apiFetch(endpoint, { method: 'POST', body: { name } })
+        .catch((err) => notifyError(err.message));
     }
     for (const name of removed) {
-      apiFetch(`${endpoint}/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(console.error);
+      apiFetch(`${endpoint}/${encodeURIComponent(name)}`, { method: 'DELETE' })
+        .catch((err) => notifyError(err.message));
     }
   }, [endpoint]);
 
@@ -148,7 +167,8 @@ function syncDiff(endpoint, prev, next) {
   // Deleted items
   for (const [id] of prevMap) {
     if (!nextMap.has(id)) {
-      apiFetch(`${endpoint}/${id}`, { method: 'DELETE' }).catch(console.error);
+      apiFetch(`${endpoint}/${id}`, { method: 'DELETE' })
+        .catch((err) => notifyError(err.message));
     }
   }
 
@@ -156,10 +176,12 @@ function syncDiff(endpoint, prev, next) {
   for (const [id, item] of nextMap) {
     if (!prevMap.has(id)) {
       // New item
-      apiFetch(endpoint, { method: 'POST', body: item }).catch(console.error);
+      apiFetch(endpoint, { method: 'POST', body: item })
+        .catch((err) => notifyError(err.message));
     } else if (JSON.stringify(prevMap.get(id)) !== JSON.stringify(item)) {
       // Updated item
-      apiFetch(`${endpoint}/${id}`, { method: 'PUT', body: item }).catch(console.error);
+      apiFetch(`${endpoint}/${id}`, { method: 'PUT', body: item })
+        .catch((err) => notifyError(err.message));
     }
   }
 }

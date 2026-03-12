@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useApiCollection, useApiSingleton, useApiStringList } from './hooks/useApi';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
@@ -13,6 +13,7 @@ import { DecisionJournal } from './components/DecisionJournal';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
 import { Modal, ConfirmModal } from './components/ui/Modal';
+import { OfflineIndicator } from './components/ui/OfflineIndicator';
 import { formatDate, formatPercentage, computePersonalRecords, detectNewPRs, PR_LABELS, computeFatigueDecay, diagnoseFatigue } from './utils/stats';
 
 const TABS = [
@@ -44,21 +45,29 @@ function App() {
   const [viewSession, setViewSession] = useState(null);
   const [editMatch, setEditMatch] = useState(null);
   const [viewMatch, setViewMatch] = useState(null);
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showClearDouble, setShowClearDouble] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [matchSubView, setMatchSubView] = useState('history'); // 'history' | 'journal'
   const [drillsSubView, setDrillsSubView] = useState('breakdown'); // 'breakdown' | 'benchmarks'
   const fileInputRef = useRef(null);
 
-  const showToast = useCallback((message) => {
-    setToast({ show: true, message });
+  const showToast = useCallback((message, variant = 'success') => {
+    setToast({ show: true, message, variant });
   }, []);
 
   const hideToast = useCallback(() => {
-    setToast({ show: false, message: '' });
+    setToast({ show: false, message: '', variant: 'success' });
   }, []);
+
+  // Listen for API error events from useApi hooks
+  useEffect(() => {
+    const handler = (e) => showToast(e.detail, 'error');
+    window.addEventListener('api-error', handler);
+    return () => window.removeEventListener('api-error', handler);
+  }, [showToast]);
 
   // === Session callbacks ===
   const handleSaveSession = useCallback((session) => {
@@ -152,6 +161,7 @@ function App() {
 
   // === Data management ===
   const handleExport = useCallback(async () => {
+    setExporting(true);
     try {
       const res = await fetch('/api/data/export');
       const data = await res.json();
@@ -164,7 +174,9 @@ function App() {
       URL.revokeObjectURL(url);
       showToast('Data exported');
     } catch {
-      showToast('Export failed');
+      showToast('Export failed', 'error');
+    } finally {
+      setExporting(false);
     }
   }, [showToast]);
 
@@ -185,7 +197,7 @@ function App() {
         showToast('Data imported — reloading...');
         setTimeout(() => window.location.reload(), 500);
       } catch {
-        showToast('Invalid file format');
+        showToast('Invalid file format', 'error');
       }
     };
     reader.readAsText(file);
@@ -204,7 +216,7 @@ function App() {
       showToast('All data cleared — reloading...');
       setTimeout(() => window.location.reload(), 500);
     } catch {
-      showToast('Clear failed');
+      showToast('Clear failed', 'error');
     }
   }, [showToast]);
 
@@ -229,13 +241,14 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-4">
+      <OfflineIndicator />
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30">
+      <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30" role="banner">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-lg font-bold text-accent">NXTPLY</h1>
-          <Button variant="ghost" onClick={() => setShowSettings(true)}><SettingsIcon /></Button>
+          <Button variant="ghost" onClick={() => setShowSettings(true)} aria-label="Settings"><SettingsIcon /></Button>
         </div>
-        <nav className="hidden md:flex max-w-3xl mx-auto px-4 gap-1">
+        <nav className="hidden md:flex max-w-3xl mx-auto px-4 gap-1" aria-label="Main navigation">
           {TABS.map(tab => (
             <button
               key={tab.id}
@@ -307,7 +320,7 @@ function App() {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-card z-30">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-card z-30" aria-label="Main navigation">
         <div className="flex">
           {TABS.map(tab => (
             <button
@@ -421,7 +434,9 @@ function App() {
           </div>
           <hr className="border-gray-100" />
           <div className="space-y-2">
-            <Button variant="secondary" onClick={handleExport} className="w-full">Export as JSON</Button>
+            <Button variant="secondary" onClick={handleExport} className="w-full" disabled={exporting}>
+              {exporting ? 'Exporting...' : 'Export as JSON'}
+            </Button>
             <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="w-full">Import JSON</Button>
             <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
             <Button variant="danger" onClick={() => setShowClearConfirm(true)} className="w-full">Clear All Data</Button>
@@ -434,7 +449,7 @@ function App() {
       <ConfirmModal open={showClearDouble} onClose={() => setShowClearDouble(false)} onConfirm={handleClearConfirmed}
         title="Are you absolutely sure?" message="All sessions, matches, plans, IDP goals, decision journal, and settings will be permanently deleted." confirmText="Delete Everything" danger />
 
-      <Toast message={toast.message} show={toast.show} onHide={hideToast} />
+      <Toast message={toast.message} show={toast.show} onHide={hideToast} variant={toast.variant} />
     </div>
   );
 }

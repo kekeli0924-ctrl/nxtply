@@ -26,6 +26,7 @@ export function getDb() {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     initSchema(db);
+    runMigrations(db);
   }
   return db;
 }
@@ -156,5 +157,25 @@ function initSchema(db) {
       password_hash TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT DEFAULT (datetime('now'))
+    );
   `);
+}
+
+// Migration system — add new migrations to the array
+const migrations = [
+  // { version: 1, up: (db) => db.exec('ALTER TABLE ...') },
+];
+
+function runMigrations(db) {
+  const current = db.prepare('SELECT MAX(version) as v FROM schema_version').get()?.v || 0;
+  for (const m of migrations) {
+    if (m.version > current) {
+      m.up(db);
+      db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(m.version);
+    }
+  }
 }

@@ -7,6 +7,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 
+import { logger } from './logger.js';
+import { getDb, resetDb } from './db.js';
 import { authMiddleware, authRouter } from './auth.js';
 import { backupDatabase } from './backup.js';
 import sessionsRouter from './routes/sessions.js';
@@ -25,48 +27,126 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production';
 
+// ── Env validation ──────────────────────────────────────
+if (isProd) {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || jwtSecret === 'change-me-to-a-random-secret') {
+    logger.warn('JWT_SECRET is not set or using insecure default — set a strong random value in .env');
+  }
+  if (!process.env.CORS_ORIGIN) {
+    logger.warn('CORS_ORIGIN not set — defaulting to http://localhost:5173');
+  }
+}
+
 const app = express();
 
-// Security headers
-app.use(helmet({ contentSecurityPolicy: false }));
+// ── Security headers + CSP ──────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: isProd ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  } : false,
+}));
 
-// Compression
 app.use(compression());
 
-// CORS — restricted to configured origin
+// ── CORS ────────────────────────────────────────────────
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({
   origin: isProd ? corsOrigin : true,
   credentials: true,
 }));
 
-// Body parsing
+// ── Body parsing ────────────────────────────────────────
 app.use(express.json({ limit: '5mb' }));
 
-// Rate limiting
+// ── XSS sanitization — strip HTML tags from string values ─
+function sanitizeStrings(obj) {
+  if (typeof obj === 'string') return obj.replace(/<[^>]*>/g, '');
+  if (Array.isArray(obj)) return obj.map(sanitizeStrings);
+  if (obj && typeof obj === 'object') {
+    const clean = {};
+    for (const [k, v] of Object.entries(obj)) {
+      clean[k] = sanitizeStrings(v);
+    }
+    return clean;
+  }
+  return obj;
+}
+
+app.use('/api', (req, res, next) => {
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeStrings(req.body);
+  }
+  next();
+});
+
+// ── CSRF defense-in-depth (origin check) ────────────────
+// JWT Bearer tokens inherently prevent CSRF (custom headers
+// can't be set by cross-origin forms). This adds an extra layer.
+if (isProd) {
+  app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    const origin = req.headers.origin || req.headers.referer;
+    if (origin && !origin.startsWith(corsOrigin)) {
+      logger.warn('CSRF origin mismatch', { origin, expected: corsOrigin });
+      return res.status(403).json({ error: 'Forbidden', code: 'CSRF_ORIGIN_MISMATCH' });
+    }
+    next();
+  });
+}
+
+// ── Rate limiting ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' },
+  message: { error: 'Too many requests, please try again later', code: 'RATE_LIMIT' },
 });
 app.use('/api', apiLimiter);
 
-// Health check (no auth)
+// Stricter rate limit for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many auth attempts, try again later', code: 'AUTH_RATE_LIMIT' },
+});
+
+// ── Request logging ─────────────────────────────────────
+app.use('/api', (req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    logger.info(`${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`);
+  });
+  next();
+});
+
+// ── Health check (no auth) ──────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Auth routes (no auth required)
-app.use('/api/auth', authRouter);
+// ── Auth routes ─────────────────────────────────────────
+app.use('/api/auth', authLimiter, authRouter);
 
 // Protected API routes — auth required in production
 if (isProd) {
   app.use('/api', authMiddleware);
 }
 
-// API routes
+// ── API routes ──────────────────────────────────────────
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/matches', matchesRouter);
 app.use('/api/custom-drills', customDrillsRouter);
@@ -79,13 +159,23 @@ app.use('/api/benchmarks', benchmarksRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/data', dataRouter);
 
-// Error handler for API routes
-app.use('/api', (err, req, res, next) => {
-  console.error(`API Error [${req.method} ${req.originalUrl}]:`, err.message);
-  res.status(500).json({ error: isProd ? 'Internal server error' : err.message });
+// ── API 404 ─────────────────────────────────────────────
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' });
 });
 
-// Production: serve Vite build
+// ── Standardized error handler ──────────────────────────
+app.use('/api', (err, req, res, next) => {
+  const status = err.status || 500;
+  const code = err.code || 'INTERNAL_ERROR';
+  logger.error(`${req.method} ${req.originalUrl}`, { status, code, message: err.message });
+  res.status(status).json({
+    error: isProd ? 'Internal server error' : err.message,
+    code,
+  });
+});
+
+// ── Production: serve Vite build ────────────────────────
 if (isProd) {
   const distPath = path.join(__dirname, '..', 'dist');
   app.use(express.static(distPath, { maxAge: '1d' }));
@@ -94,10 +184,31 @@ if (isProd) {
   });
 }
 
-// Daily backup (runs at startup and every 24h)
+// ── Daily backup ────────────────────────────────────────
 backupDatabase();
-setInterval(backupDatabase, 24 * 60 * 60 * 1000);
+const backupInterval = setInterval(backupDatabase, 24 * 60 * 60 * 1000);
 
-app.listen(PORT, () => {
-  console.log(`NXTPLY API server running on http://localhost:${PORT} (${isProd ? 'production' : 'development'})`);
+// ── Start server ────────────────────────────────────────
+const server = app.listen(PORT, () => {
+  logger.info(`NXTPLY API running on http://localhost:${PORT} (${isProd ? 'production' : 'development'})`);
 });
+
+// ── Graceful shutdown ───────────────────────────────────
+function shutdown(signal) {
+  logger.info(`${signal} received — shutting down gracefully`);
+  clearInterval(backupInterval);
+  server.close(() => {
+    logger.info('HTTP server closed');
+    resetDb();
+    logger.info('Database closed');
+    process.exit(0);
+  });
+  // Force exit after 10s if graceful shutdown stalls
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
