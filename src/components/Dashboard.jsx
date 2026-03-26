@@ -204,21 +204,14 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
     return { count: linked.length, total: getCurrentWeekSessionCount(sessions) };
   }, [sessions]);
 
-  // Onboarding: show welcome card for new users
+  // Empty state: prompt to log first session (onboarding handles new-user setup in App.jsx)
   if (sessions.length === 0) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto">
         <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
         <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-8 text-center" style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Welcome to NXTPLY</h3>
-          <p className="text-sm text-gray-500 mb-6">Log your first training session to unlock your personal dashboard.</p>
-          <div className="flex items-center justify-center gap-3 mb-6 text-xs text-gray-400">
-            <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center text-[10px] font-bold">1</span> Log</span>
-            <span className="text-gray-300">&rarr;</span>
-            <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-[10px] font-bold">2</span> Track</span>
-            <span className="text-gray-300">&rarr;</span>
-            <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-[10px] font-bold">3</span> Improve</span>
-          </div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Ready to Train</h3>
+          <p className="text-sm text-gray-500 mb-6">Log your first session to unlock your personal dashboard.</p>
           {onNavigateToLog && <Button onClick={onNavigateToLog}>Log Your First Session</Button>}
         </div>
       </div>
@@ -290,6 +283,9 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
         <StatCard label="Avg Shot %" value={avgShot !== null ? `${avgShot}%` : '\u2014'} sub="Last 7 sessions" />
         <StatCard label="Avg Pass %" value={avgPass !== null ? `${avgPass}%` : '\u2014'} sub="Last 7 sessions" />
       </div>
+
+      {/* Peer Comparison — prominent position */}
+      <ComparisonCard sessions={sessions} ageGroup={ageGroup} skillLevel={skillLevel} onOpenSettings={onOpenSettings} />
 
       {/* Weekly Load Gauge */}
       {sessions.length >= 2 && (
@@ -405,9 +401,6 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
 
       {/* Gap-Based Session Suggestions */}
       <GapSuggestionsCard sessions={sessions} onNavigateToLog={onNavigateToLog} />
-
-      {/* Peer Comparison */}
-      <ComparisonCard sessions={sessions} ageGroup={ageGroup} skillLevel={skillLevel} onOpenSettings={onOpenSettings} />
 
       {/* Development Gap */}
       {devGap && (

@@ -70,6 +70,45 @@ function TagSelector({ label, options, value, onChange }) {
   );
 }
 
+function detectMediaType(url) {
+  if (/youtube\.com|youtu\.be/i.test(url)) return 'youtube';
+  if (/drive\.google\.com|docs\.google\.com/i.test(url)) return 'drive';
+  return 'other';
+}
+
+function MediaLinkInput({ onAdd }) {
+  const [url, setUrl] = useState('');
+  const [label, setLabel] = useState('');
+
+  const handleAdd = () => {
+    if (!url.trim()) return;
+    try {
+      new URL(url); // validate URL
+    } catch {
+      return;
+    }
+    onAdd({ url: url.trim(), label: label.trim(), type: detectMediaType(url) });
+    setUrl('');
+    setLabel('');
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/..."
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30"
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAdd())} />
+        <button type="button" onClick={handleAdd}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+          Add
+        </button>
+      </div>
+      <input type="text" value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (optional)"
+        className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30" />
+    </div>
+  );
+}
+
 function emptyForm() {
   return {
     date: today(),
@@ -100,6 +139,7 @@ function emptyForm() {
     attacking: { duels: { attempts: '', successes: '', endProducts: '', insideCount: '' }, takeOns: { attempts: '', endProducts: '' } },
     reflection: { confidence: 3, focus: 3, enjoyment: 3, notes: '' },
     idpGoals: [],
+    mediaLinks: [],
   };
 }
 
@@ -154,6 +194,7 @@ function sessionToForm(session) {
     notes: session.notes || '',
     quickRating: session.quickRating ?? 3,
     idpGoals: session.idpGoals ? [...session.idpGoals] : [],
+    mediaLinks: session.mediaLinks ? [...session.mediaLinks] : [],
   };
 }
 
@@ -252,6 +293,7 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
       drills: form.drills,
       notes: form.notes,
       idpGoals: form.idpGoals || [],
+      mediaLinks: form.mediaLinks || [],
     };
 
     if (hasShootingDrill(form.drills) && num(form.shooting.shotsTaken)) {
@@ -830,6 +872,24 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
           rows={3}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
         />
+      </Card>
+
+      {/* Media Links */}
+      <Card>
+        <label className="block text-xs font-medium text-gray-500 mb-3">Media Links (optional)</label>
+        {form.mediaLinks.map((link, i) => (
+          <div key={i} className="flex items-center gap-2 mb-2">
+            <span className="text-xs shrink-0">
+              {link.type === 'youtube' ? '▶' : link.type === 'drive' ? '📁' : '🔗'}
+            </span>
+            <span className="text-xs text-accent truncate flex-1">{link.label || link.url}</span>
+            <button type="button" onClick={() => setForm(prev => ({ ...prev, mediaLinks: prev.mediaLinks.filter((_, j) => j !== i) }))}
+              className="text-xs text-red-400 hover:text-red-600">✕</button>
+          </div>
+        ))}
+        {form.mediaLinks.length < 10 && (
+          <MediaLinkInput onAdd={(link) => setForm(prev => ({ ...prev, mediaLinks: [...prev.mediaLinks, link] }))} />
+        )}
       </Card>
 
       {/* Save as Template */}

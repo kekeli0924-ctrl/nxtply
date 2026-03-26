@@ -10,6 +10,7 @@ import { TrainingCalendar } from './components/TrainingCalendar';
 import { BenchmarkTests } from './components/BenchmarkTests';
 import { IDPModule } from './components/IDPModule';
 import { DecisionJournal } from './components/DecisionJournal';
+import { OnboardingFlow } from './components/OnboardingFlow';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
 import { Modal, ConfirmModal } from './components/ui/Modal';
@@ -266,6 +267,16 @@ function App() {
 
       {/* Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
+        {sessionsLoaded && sessions.length === 0 && !settings.onboardingComplete ? (
+          <OnboardingFlow
+            settings={settings}
+            onComplete={(data) => {
+              setSettings(prev => ({ ...prev, ...data }));
+              setActiveTab('log');
+            }}
+          />
+        ) : (
+        <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
           <Dashboard sessions={sessions} matches={matches} personalRecords={personalRecords} onViewSession={handleViewSession} decisionJournal={decisionJournal} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} />
         </div>
@@ -317,6 +328,8 @@ function App() {
         <div className={activeTab === 'idp' ? '' : 'hidden'}>
           <IDPModule goals={idpGoals} onSaveGoals={setIdpGoals} sessions={sessions} />
         </div>
+        </>
+        )}
       </main>
 
       {/* Mobile bottom nav */}
@@ -627,6 +640,21 @@ function SessionDetail({ session }) {
         <div>
           <span className="text-gray-500">Notes</span>
           <p className="mt-1 text-gray-700 bg-gray-50 rounded-lg p-2 text-xs">{session.notes}</p>
+        </div>
+      )}
+      {session.mediaLinks?.length > 0 && (
+        <div>
+          <span className="text-gray-500">Media</span>
+          <div className="mt-1 space-y-1.5">
+            {session.mediaLinks.map((link, i) => (
+              <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-xs text-accent hover:underline bg-gray-50 rounded-lg px-3 py-2">
+                <span>{link.type === 'youtube' ? '▶' : link.type === 'drive' ? '📁' : '🔗'}</span>
+                <span className="truncate">{link.label || link.url}</span>
+                <svg className="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </a>
+            ))}
+          </div>
         </div>
       )}
     </div>

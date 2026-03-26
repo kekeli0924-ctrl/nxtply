@@ -10,6 +10,8 @@ function rowToSettings(row) {
     weeklyGoal: row.weekly_goal ?? 3,
     ageGroup: row.age_group || '',
     skillLevel: row.skill_level || '',
+    playerName: row.player_name || '',
+    onboardingComplete: row.onboarding_complete ?? 0,
   };
 }
 
@@ -26,12 +28,16 @@ router.put('/', validate(settingsSchema), (req, res) => {
       weekly_goal = COALESCE(@weekly_goal, weekly_goal),
       age_group = COALESCE(@age_group, age_group),
       skill_level = COALESCE(@skill_level, skill_level),
+      player_name = COALESCE(@player_name, player_name),
+      onboarding_complete = COALESCE(@onboarding_complete, onboarding_complete),
       updated_at = datetime('now')
       WHERE id = 1`).run({
       distance_unit: s.distanceUnit ?? null,
       weekly_goal: s.weeklyGoal ?? null,
       age_group: s.ageGroup ?? null,
       skill_level: s.skillLevel ?? null,
+      player_name: s.playerName ?? null,
+      onboarding_complete: s.onboardingComplete ?? null,
     });
     const row = getDb().prepare('SELECT * FROM settings WHERE id = 1').get();
     res.json(rowToSettings(row));

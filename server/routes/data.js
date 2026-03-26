@@ -8,12 +8,12 @@ function importData(db, data) {
   const counts = {};
 
   if (data.sessions?.length) {
-    const stmt = db.prepare(`INSERT OR IGNORE INTO sessions (id, date, duration, drills, notes, intention, session_type, position, quick_rating, body_check, shooting, passing, fitness, delivery, attacking, reflection, idp_goals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const stmt = db.prepare(`INSERT OR IGNORE INTO sessions (id, date, duration, drills, notes, intention, session_type, position, quick_rating, body_check, shooting, passing, fitness, delivery, attacking, reflection, idp_goals, media_links) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const s of data.sessions) {
       stmt.run(s.id, s.date, Number(s.duration) || 0, JSON.stringify(s.drills || []), s.notes || '', s.intention || '', s.sessionType || '', s.position || 'general', s.quickRating ?? 3,
         s.bodyCheck ? JSON.stringify(s.bodyCheck) : null, s.shooting ? JSON.stringify(s.shooting) : null, s.passing ? JSON.stringify(s.passing) : null,
         s.fitness ? JSON.stringify(s.fitness) : null, s.delivery ? JSON.stringify(s.delivery) : null, s.attacking ? JSON.stringify(s.attacking) : null, s.reflection ? JSON.stringify(s.reflection) : null,
-        JSON.stringify(s.idpGoals || []));
+        JSON.stringify(s.idpGoals || []), JSON.stringify(s.mediaLinks || []));
     }
     counts.sessions = data.sessions.length;
   }
@@ -96,6 +96,7 @@ router.get('/export', (req, res) => {
     passing: JSON.parse(row.passing || 'null'), fitness: JSON.parse(row.fitness || 'null'),
     delivery: JSON.parse(row.delivery || 'null'), attacking: JSON.parse(row.attacking || 'null'),
     reflection: JSON.parse(row.reflection || 'null'), idpGoals: JSON.parse(row.idp_goals || '[]'),
+    mediaLinks: JSON.parse(row.media_links || '[]'),
   }));
 
   const matches = db.prepare('SELECT * FROM matches ORDER BY date DESC').all().map(row => ({

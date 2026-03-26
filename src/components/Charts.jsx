@@ -3,6 +3,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
 import { getShotPercentage, getPassPercentage, formatDateShort, getFOETrend, getZoneHeatmapData } from '../utils/stats';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ACCENT = '#1E3A5F';
 const GRAY = '#78716C';
@@ -24,6 +25,7 @@ function ChartWrapper({ children, title, empty }) {
 }
 
 export function ShotPercentChart({ sessions }) {
+  const isMobile = useIsMobile();
   const data = [...sessions]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-30)
@@ -35,13 +37,13 @@ export function ShotPercentChart({ sessions }) {
 
   return (
     <ChartWrapper title="Shot % (Last 30 Sessions)" empty={!data.length}>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY }} />
-          <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: GRAY }} unit="%" />
+          <XAxis dataKey="date" tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} interval={isMobile ? 'preserveStartEnd' : undefined} />
+          <YAxis domain={[0, 100]} tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} unit="%" />
           <Tooltip formatter={(v) => [`${v}%`, 'Shot %']} />
-          <Line type="monotone" dataKey="value" stroke={ACCENT} strokeWidth={2} dot={{ r: 3 }} />
+          <Line type="monotone" dataKey="value" stroke={ACCENT} strokeWidth={2} dot={{ r: isMobile ? 5 : 3 }} activeDot={{ r: isMobile ? 8 : 6 }} />
         </LineChart>
       </ResponsiveContainer>
     </ChartWrapper>
@@ -49,6 +51,7 @@ export function ShotPercentChart({ sessions }) {
 }
 
 export function PassPercentChart({ sessions }) {
+  const isMobile = useIsMobile();
   const data = [...sessions]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-30)
@@ -60,13 +63,13 @@ export function PassPercentChart({ sessions }) {
 
   return (
     <ChartWrapper title="Pass Completion % (Last 30 Sessions)" empty={!data.length}>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY }} />
-          <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: GRAY }} unit="%" />
+          <XAxis dataKey="date" tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} interval={isMobile ? 'preserveStartEnd' : undefined} />
+          <YAxis domain={[0, 100]} tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} unit="%" />
           <Tooltip formatter={(v) => [`${v}%`, 'Pass %']} />
-          <Line type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={2} dot={{ r: 3 }} />
+          <Line type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={2} dot={{ r: isMobile ? 5 : 3 }} activeDot={{ r: isMobile ? 8 : 6 }} />
         </LineChart>
       </ResponsiveContainer>
     </ChartWrapper>
@@ -74,6 +77,7 @@ export function PassPercentChart({ sessions }) {
 }
 
 export function DurationChart({ sessions }) {
+  const isMobile = useIsMobile();
   const data = [...sessions]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-30)
@@ -84,11 +88,11 @@ export function DurationChart({ sessions }) {
 
   return (
     <ChartWrapper title="Session Duration (min)" empty={!data.length}>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY }} />
-          <YAxis tick={{ fontSize: 11, fill: GRAY }} />
+          <XAxis dataKey="date" tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} interval={isMobile ? 'preserveStartEnd' : undefined} />
+          <YAxis tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} />
           <Tooltip formatter={(v) => [`${v} min`, 'Duration']} />
           <Bar dataKey="value" fill={ACCENT} radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -98,6 +102,7 @@ export function DurationChart({ sessions }) {
 }
 
 export function RPEChart({ sessions }) {
+  const isMobile = useIsMobile();
   const data = [...sessions]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-30)
@@ -109,13 +114,13 @@ export function RPEChart({ sessions }) {
 
   return (
     <ChartWrapper title="RPE Over Time" empty={!data.length}>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY }} />
-          <YAxis domain={[1, 10]} tick={{ fontSize: 11, fill: GRAY }} />
+          <XAxis dataKey="date" tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} interval={isMobile ? 'preserveStartEnd' : undefined} />
+          <YAxis domain={[1, 10]} tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} />
           <Tooltip formatter={(v) => [v, 'RPE']} />
-          <Line type="monotone" dataKey="value" stroke="#D97706" strokeWidth={2} dot={{ r: 3 }} />
+          <Line type="monotone" dataKey="value" stroke="#D97706" strokeWidth={2} dot={{ r: isMobile ? 5 : 3 }} activeDot={{ r: isMobile ? 8 : 6 }} />
         </LineChart>
       </ResponsiveContainer>
     </ChartWrapper>
@@ -125,15 +130,16 @@ export function RPEChart({ sessions }) {
 const ZONE_COLORS = ['#1E3A5F', '#2A4A73', '#3B82F6', '#60A5FA', '#8B5CF6', '#A78BFA'];
 
 export function FOETrendChart({ sessions }) {
+  const isMobile = useIsMobile();
   const data = getFOETrend(sessions, 15);
 
   return (
     <ChartWrapper title="Finishing Over Expected (FOE)" empty={!data.length}>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY }} />
-          <YAxis tick={{ fontSize: 11, fill: GRAY }} />
+          <XAxis dataKey="date" tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} interval={isMobile ? 'preserveStartEnd' : undefined} />
+          <YAxis tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} />
           <Tooltip formatter={(v, name) => [+v.toFixed(2), name === 'foe' ? 'FOE' : name === 'goals' ? 'Goals' : 'xG']} />
           <Bar dataKey="foe" fill="#10B981" radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -143,6 +149,7 @@ export function FOETrendChart({ sessions }) {
 }
 
 export function ShotPortfolioChart({ sessions }) {
+  const isMobile = useIsMobile();
   // Aggregate zone distribution across all sessions
   const zoneTotals = {};
   for (const s of sessions) {
@@ -166,16 +173,16 @@ export function ShotPortfolioChart({ sessions }) {
 
   return (
     <ChartWrapper title="Shot Portfolio (Zone Distribution)" empty={!data.length}>
-      <div className="flex items-center gap-4">
-        <ResponsiveContainer width="50%" height={180}>
+      <div className={isMobile ? 'flex flex-col items-center gap-3' : 'flex items-center gap-4'}>
+        <ResponsiveContainer width={isMobile ? '100%' : '50%'} height={isMobile ? 150 : 180}>
           <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={35}>
+            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={isMobile ? 55 : 70} innerRadius={isMobile ? 25 : 35}>
               {data.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
             </Pie>
             <Tooltip formatter={(v, name) => [`${v} shots`, name]} />
           </PieChart>
         </ResponsiveContainer>
-        <div className="flex-1 space-y-1">
+        <div className={`${isMobile ? 'w-full' : 'flex-1'} space-y-1`}>
           {data.map((d, i) => (
             <div key={d.name} className="flex items-center gap-2 text-xs">
               <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ZONE_COLORS[i % ZONE_COLORS.length] }} />
@@ -191,6 +198,7 @@ export function ShotPortfolioChart({ sessions }) {
 }
 
 export function DrillTrendChart({ sessions, statFn, label, color = ACCENT }) {
+  const isMobile = useIsMobile();
   const data = [...sessions]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(s => ({
@@ -201,13 +209,13 @@ export function DrillTrendChart({ sessions, statFn, label, color = ACCENT }) {
 
   return (
     <ChartWrapper title={label} empty={!data.length}>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY }} />
-          <YAxis tick={{ fontSize: 11, fill: GRAY }} />
+          <XAxis dataKey="date" tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} interval={isMobile ? 'preserveStartEnd' : undefined} />
+          <YAxis tick={{ fontSize: isMobile ? 10 : 11, fill: GRAY }} />
           <Tooltip />
-          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: 3 }} />
+          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: isMobile ? 5 : 3 }} activeDot={{ r: isMobile ? 8 : 6 }} />
         </LineChart>
       </ResponsiveContainer>
     </ChartWrapper>

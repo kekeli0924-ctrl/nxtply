@@ -4,14 +4,15 @@ import {
   ResponsiveContainer, Tooltip,
 } from 'recharts';
 import { computeFourPillars } from '../utils/stats';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ACCENT = '#1E3A5F';
 const GRID = '#E8E5E0';
 const LABEL = '#78716C';
 
-function CustomTick({ payload, x, y, textAnchor }) {
+function CustomTick({ payload, x, y, textAnchor, isMobile }) {
   return (
-    <text x={x} y={y} textAnchor={textAnchor} fill={LABEL} fontSize={12} fontWeight={500}>
+    <text x={x} y={y} textAnchor={textAnchor} fill={LABEL} fontSize={isMobile ? 10 : 12} fontWeight={500}>
       {payload.value}
     </text>
   );
@@ -22,6 +23,8 @@ export function FourPillarChart({ sessions, decisionJournal = [] }) {
     () => computeFourPillars(sessions, decisionJournal),
     [sessions, decisionJournal]
   );
+
+  const isMobile = useIsMobile();
 
   if (!pillars) return null;
 
@@ -34,10 +37,10 @@ export function FourPillarChart({ sessions, decisionJournal = [] }) {
         <span className="text-xs font-medium text-accent">{avgScore}/100</span>
       </div>
 
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={isMobile ? 190 : 220}>
         <RadarChart data={pillars} cx="50%" cy="50%" outerRadius="70%">
           <PolarGrid stroke={GRID} />
-          <PolarAngleAxis dataKey="pillar" tick={<CustomTick />} />
+          <PolarAngleAxis dataKey="pillar" tick={<CustomTick isMobile={isMobile} />} />
           <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
           <Radar
             dataKey="score"

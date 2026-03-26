@@ -168,6 +168,11 @@ function initSchema(db) {
 // Migration system — add new migrations to the array
 const migrations = [
   { version: 1, up: (db) => db.exec("ALTER TABLE sessions ADD COLUMN idp_goals TEXT DEFAULT '[]'") },
+  { version: 2, up: (db) => {
+    db.exec("ALTER TABLE settings ADD COLUMN player_name TEXT");
+    db.exec("ALTER TABLE settings ADD COLUMN onboarding_complete INTEGER DEFAULT 0");
+  }},
+  { version: 3, up: (db) => db.exec("ALTER TABLE sessions ADD COLUMN media_links TEXT DEFAULT '[]'") },
 ];
 
 function runMigrations(db) {

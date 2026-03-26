@@ -25,6 +25,11 @@ export const sessionSchema = z.object({
   attacking: jsonObj,
   reflection: jsonObj,
   idpGoals: z.array(z.string().max(100)).max(20).default([]),
+  mediaLinks: z.array(z.object({
+    url: z.string().url().max(2000),
+    label: z.string().max(200).default(''),
+    type: z.enum(['youtube', 'drive', 'other']).default('other'),
+  })).max(10).default([]),
 }).strict();
 
 // Matches
@@ -53,6 +58,8 @@ export const settingsSchema = z.object({
   weeklyGoal: z.coerce.number().int().min(1).max(14).optional(),
   ageGroup: z.string().max(50).optional(),
   skillLevel: z.string().max(50).optional(),
+  playerName: z.string().max(100).optional(),
+  onboardingComplete: z.coerce.number().int().min(0).max(1).optional(),
 }).strict();
 
 // Training plans
