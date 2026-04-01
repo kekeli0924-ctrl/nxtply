@@ -21,8 +21,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'NXTPLY — Soccer Training Tracker',
-        short_name: 'NXTPLY',
+        name: 'Composed — Soccer Training Tracker',
+        short_name: 'Composed',
         description: 'Track your soccer training sessions, matches, and development.',
         theme_color: '#FAFAF8',
         background_color: '#FAFAF8',

@@ -6,7 +6,7 @@ import { PRESET_DRILLS, getWeekDates, formatDateShort } from '../utils/stats';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, onDeletePlan }) {
+export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, onDeletePlan, assignedPlans = [] }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [editingPlan, setEditingPlan] = useState(null); // { date, ...existing plan data }
 
@@ -18,6 +18,12 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
     for (const p of plans) map[p.date] = p;
     return map;
   }, [plans]);
+
+  const assignedByDate = useMemo(() => {
+    const map = {};
+    for (const p of assignedPlans) map[p.date] = p;
+    return map;
+  }, [assignedPlans]);
 
   const sessionDates = useMemo(() => new Set(sessions.map(s => s.date)), [sessions]);
 
@@ -43,6 +49,7 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
       <div className="grid grid-cols-7 gap-2">
         {weekDates.map((date, i) => {
           const plan = plansByDate[date];
+          const assigned = assignedByDate[date];
           const hasSession = sessionDates.has(date);
           const isToday = date === todayStr;
           const isPast = date < todayStr;
@@ -51,7 +58,7 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
             <div
               key={date}
               className={`rounded-xl border p-3 min-h-[120px] flex flex-col ${
-                isToday ? 'border-accent bg-accent/5' : 'border-gray-100 bg-surface'
+                isToday ? 'border-accent bg-accent/5' : assigned ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100 bg-surface'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
@@ -59,10 +66,30 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
                   <p className={`text-xs font-medium ${isToday ? 'text-accent' : 'text-gray-400'}`}>{DAY_NAMES[i]}</p>
                   <p className="text-sm font-semibold text-gray-700">{formatDateShort(date)}</p>
                 </div>
-                {hasSession && (
-                  <span className="text-green-500 text-lg" title="Session completed">&#10003;</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {assigned && (
+                    <span className="text-[9px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">Coach</span>
+                  )}
+                  {hasSession && (
+                    <span className="text-green-500 text-lg" title="Session completed">&#10003;</span>
+                  )}
+                </div>
               </div>
+
+              {/* Assigned plan from coach (read-only) */}
+              {assigned && (
+                <div className="mb-1 pb-1 border-b border-blue-100">
+                  <div className="flex flex-wrap gap-1">
+                    {assigned.drills.slice(0, 2).map(d => (
+                      <span key={d} className="bg-blue-100 text-blue-600 text-[10px] px-1.5 py-0.5 rounded-full">{d}</span>
+                    ))}
+                    {assigned.drills.length > 2 && (
+                      <span className="text-[10px] text-blue-400">+{assigned.drills.length - 2}</span>
+                    )}
+                  </div>
+                  {assigned.notes && <p className="text-[10px] text-blue-400 mt-0.5 truncate">{assigned.notes}</p>}
+                </div>
+              )}
 
               {plan ? (
                 <div className="flex-1">
@@ -109,16 +136,18 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
       <div className="md:hidden space-y-2">
         {weekDates.map((date, i) => {
           const plan = plansByDate[date];
+          const assigned = assignedByDate[date];
           const hasSession = sessionDates.has(date);
           const isToday = date === todayStr;
           return (
-            <Card key={date + '-mobile'} className={isToday ? 'border-accent' : ''}>
+            <Card key={date + '-mobile'} className={isToday ? 'border-accent' : assigned ? 'border-blue-200' : ''}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div>
                     <p className={`text-xs font-medium ${isToday ? 'text-accent' : 'text-gray-400'}`}>{DAY_NAMES[i]}</p>
                     <p className="text-sm font-semibold text-gray-700">{formatDateShort(date)}</p>
                   </div>
+                  {assigned && <span className="text-[9px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">Coach</span>}
                   {hasSession && <span className="text-green-500">&#10003;</span>}
                 </div>
                 {plan ? (

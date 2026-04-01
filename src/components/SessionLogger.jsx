@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { ShotZoneGrid } from './ui/FormInputs';
+import { VideoUpload } from './VideoUpload';
 import {
   PRESET_DRILLS, SESSION_TYPES, hasShootingDrill, hasPassingDrill, hasFitnessDrill,
 } from '../utils/stats';
@@ -29,20 +30,6 @@ const PRESSURE_SIMS = [
   { id: 'active', label: 'Active' },
   { id: 'match-like', label: 'Match-like' },
 ];
-
-function suggestSessionType(bodyCheck, sessions) {
-  if (!bodyCheck) return null;
-  const { sleepHours, energy, soreness, hrv } = bodyCheck;
-  const lowRecovery = (sleepHours && Number(sleepHours) < 6) || Number(energy) <= 2 || Number(soreness) >= 4 || (hrv && Number(hrv) < 40);
-  if (lowRecovery) {
-    return { type: 'Representative', label: 'Low-Intensity Recommended', reason: 'Your recovery indicators suggest a lighter session today.', color: 'amber' };
-  }
-  const highRecovery = (sleepHours && Number(sleepHours) >= 8) && Number(energy) >= 4 && Number(soreness) <= 2;
-  if (highRecovery) {
-    return { type: 'Benchmark', label: 'High-Intensity Ready', reason: 'You\'re well-recovered — great day for a benchmark or intense session.', color: 'green' };
-  }
-  return null;
-}
 
 function TagSelector({ label, options, value, onChange }) {
   return (
@@ -119,24 +106,19 @@ function emptyForm() {
       shotsTaken: '', goals: '', xG: '',
       leftFoot: { shots: '', goals: '' },
       rightFoot: { shots: '', goals: '' },
-      phases: { early: { shots: '', goals: '' }, mid: { shots: '', goals: '' }, late: { shots: '', goals: '' } },
       shotDetails: [],
     },
     passing: {
       attempts: '', completed: '', keyPasses: '',
-      phases: { early: { attempts: '', completed: '' }, late: { attempts: '', completed: '' } },
     },
     fitness: {
       sprints: '', distance: '', rpe: 5,
-      phases: { early: { sprintQuality: '' }, late: { sprintQuality: '' } },
     },
     notes: '',
     intention: '',
     sessionType: '',
     position: 'general',
     quickRating: 3,
-    delivery: { entries: [] },
-    attacking: { duels: { attempts: '', successes: '', endProducts: '', insideCount: '' }, takeOns: { attempts: '', endProducts: '' } },
     reflection: { confidence: 3, focus: 3, enjoyment: 3, notes: '' },
     idpGoals: [],
     mediaLinks: [],
@@ -167,29 +149,16 @@ function sessionToForm(session) {
         shots: session.shooting?.rightFoot?.shots ?? '',
         goals: session.shooting?.rightFoot?.goals ?? '',
       },
-      phases: {
-        early: { shots: session.shooting?.phases?.early?.shots ?? '', goals: session.shooting?.phases?.early?.goals ?? '' },
-        mid: { shots: session.shooting?.phases?.mid?.shots ?? '', goals: session.shooting?.phases?.mid?.goals ?? '' },
-        late: { shots: session.shooting?.phases?.late?.shots ?? '', goals: session.shooting?.phases?.late?.goals ?? '' },
-      },
     },
     passing: {
       attempts: session.passing?.attempts ?? '',
       completed: session.passing?.completed ?? '',
       keyPasses: session.passing?.keyPasses ?? '',
-      phases: {
-        early: { attempts: session.passing?.phases?.early?.attempts ?? '', completed: session.passing?.phases?.early?.completed ?? '' },
-        late: { attempts: session.passing?.phases?.late?.attempts ?? '', completed: session.passing?.phases?.late?.completed ?? '' },
-      },
     },
     fitness: {
       sprints: session.fitness?.sprints ?? '',
       distance: session.fitness?.distance ?? '',
       rpe: session.fitness?.rpe ?? 5,
-      phases: {
-        early: { sprintQuality: session.fitness?.phases?.early?.sprintQuality ?? '' },
-        late: { sprintQuality: session.fitness?.phases?.late?.sprintQuality ?? '' },
-      },
     },
     notes: session.notes || '',
     quickRating: session.quickRating ?? 3,
@@ -204,16 +173,66 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [errors, setErrors] = useState({});
   const [showFootBreakdown, setShowFootBreakdown] = useState(false);
-  const [showPhaseBreakdown, setShowPhaseBreakdown] = useState(false);
   const [quickMode, setQuickMode] = useState(false);
   const [showShotDetails, setShowShotDetails] = useState(false);
-  const [showDelivery, setShowDelivery] = useState(false);
-  const [showDuelDetails, setShowDuelDetails] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [inputMode, setInputMode] = useState('manual'); // 'manual' | 'video'
+  const [aiFields, setAiFields] = useState(new Set()); // track which fields were AI-filled
 
   const allDrills = [...PRESET_DRILLS, ...customDrills];
   const isEditing = !!editSession;
+
+  const handleVideoAnalysis = useCallback((result) => {
+    const filled = new Set();
+    const updates = {};
+
+    if (result.duration) { updates.duration = String(result.duration); filled.add('duration'); }
+    if (result.drills?.length) { updates.drills = result.drills; filled.add('drills'); }
+    if (result.quickRating) { updates.quickRating = result.quickRating; filled.add('quickRating'); }
+    if (result.sessionType) { updates.sessionType = result.sessionType; filled.add('sessionType'); }
+    if (result.notes) { updates.notes = result.notes; filled.add('notes'); }
+
+    if (result.shooting) {
+      updates.shooting = {
+        goals: String(result.shooting.goals || 0),
+        shotsTaken: String(result.shooting.shotsTaken || 0),
+        leftFoot: result.shooting.leftFoot ? {
+          shots: String(result.shooting.leftFoot.shots || 0),
+          goals: String(result.shooting.leftFoot.goals || 0),
+        } : { shots: '0', goals: '0' },
+        rightFoot: result.shooting.rightFoot ? {
+          shots: String(result.shooting.rightFoot.shots || 0),
+          goals: String(result.shooting.rightFoot.goals || 0),
+        } : { shots: '0', goals: '0' },
+      };
+      filled.add('shooting');
+      if (result.shooting.leftFoot || result.shooting.rightFoot) setShowFootBreakdown(true);
+    }
+
+    if (result.passing) {
+      updates.passing = {
+        attempts: String(result.passing.attempts || 0),
+        completed: String(result.passing.completed || 0),
+        keyPasses: String(result.passing.keyPasses || 0),
+      };
+      filled.add('passing');
+    }
+
+    if (result.fitness) {
+      updates.fitness = {
+        rpe: String(result.fitness.rpe || 5),
+        sprints: String(result.fitness.sprints || 0),
+        distance: String(result.fitness.distance || 0),
+        distanceUnit: distanceUnit || 'km',
+      };
+      filled.add('fitness');
+    }
+
+    setForm(prev => ({ ...prev, ...updates }));
+    setAiFields(filled);
+    setInputMode('manual'); // switch to manual so player can review
+  }, [distanceUnit]);
 
   useEffect(() => {
     if (editSession) {
@@ -221,21 +240,31 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
       setShowFootBreakdown(
         !!(editSession.shooting?.leftFoot?.shots || editSession.shooting?.rightFoot?.shots)
       );
-      setShowPhaseBreakdown(
-        !!(editSession.shooting?.phases || editSession.passing?.phases || editSession.fitness?.phases)
-      );
       setShowShotDetails(!!(editSession.shooting?.shotDetails?.length));
-      setShowDelivery(!!(editSession.delivery?.entries?.length));
-      setShowDuelDetails(!!(editSession.attacking?.duels?.endProducts || editSession.attacking?.duels?.insideCount));
     } else {
       setForm(emptyForm());
       setShowFootBreakdown(false);
-      setShowPhaseBreakdown(false);
       setShowShotDetails(false);
-      setShowDelivery(false);
-      setShowDuelDetails(false);
     }
   }, [editSession]);
+
+  // Listen for daily plan pre-fill
+  useEffect(() => {
+    const handler = (e) => {
+      const plan = e.detail;
+      if (plan?.drills) {
+        setForm(prev => ({
+          ...prev,
+          drills: plan.drills,
+          duration: String(plan.targetDuration || 45),
+          intention: plan.focus || '',
+        }));
+        setInputMode('manual');
+      }
+    };
+    window.addEventListener('prefill-session', handler);
+    return () => window.removeEventListener('prefill-session', handler);
+  }, []);
 
   const update = (path, value) => {
     setForm(prev => {
@@ -344,60 +373,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
       session.fitness.rpe = Number(form.fitness.rpe);
     }
 
-    // Phase breakdown
-    if (showPhaseBreakdown) {
-      if (session.shooting) {
-        const sp = form.shooting.phases;
-        const hasData = ['early', 'mid', 'late'].some(p => num(sp[p].shots));
-        if (hasData) {
-          session.shooting.phases = {};
-          for (const phase of ['early', 'mid', 'late']) {
-            if (num(sp[phase].shots)) {
-              session.shooting.phases[phase] = { shots: num(sp[phase].shots) || 0, goals: num(sp[phase].goals) || 0 };
-            }
-          }
-        }
-      }
-      if (session.passing) {
-        const pp = form.passing.phases;
-        const hasData = ['early', 'late'].some(p => num(pp[p].attempts));
-        if (hasData) {
-          session.passing.phases = {};
-          for (const phase of ['early', 'late']) {
-            if (num(pp[phase].attempts)) {
-              session.passing.phases[phase] = { attempts: num(pp[phase].attempts) || 0, completed: num(pp[phase].completed) || 0 };
-            }
-          }
-        }
-      }
-      if (session.fitness) {
-        const fp = form.fitness.phases;
-        const hasData = ['early', 'late'].some(p => fp[p].sprintQuality !== '' && fp[p].sprintQuality !== undefined);
-        if (hasData) {
-          session.fitness.phases = {};
-          for (const phase of ['early', 'late']) {
-            if (fp[phase].sprintQuality !== '' && fp[phase].sprintQuality !== undefined) {
-              session.fitness.phases[phase] = { sprintQuality: Number(fp[phase].sprintQuality) };
-            }
-          }
-        }
-      }
-    }
-
-    // Body check
-    if (form.bodyCheck.sleepHours !== '' || form.bodyCheck.hrv !== '' || form.bodyCheck.hydration !== 3 || form.bodyCheck.energy !== 3 || form.bodyCheck.soreness !== 1 || form.bodyCheck.injuryNotes.trim()) {
-      session.bodyCheck = {
-        sleepHours: Number(form.bodyCheck.sleepHours) || 0,
-        hrv: num(form.bodyCheck.hrv) || undefined,
-        hydration: Number(form.bodyCheck.hydration),
-        energy: Number(form.bodyCheck.energy),
-        soreness: Number(form.bodyCheck.soreness),
-        injuryNotes: form.bodyCheck.injuryNotes.trim(),
-      };
-      // Only include HRV if user entered a value
-      if (session.bodyCheck.hrv === undefined) delete session.bodyCheck.hrv;
-    }
-
     onSave(session);
   };
 
@@ -447,8 +422,38 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
         )}
       </div>
 
+      {/* Input mode toggle */}
+      {!isEditing && (
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button type="button" onClick={() => setInputMode('manual')}
+            className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${inputMode === 'manual' ? 'bg-white text-accent shadow-sm' : 'text-gray-500'}`}>
+            Manual Entry
+          </button>
+          <button type="button" onClick={() => setInputMode('video')}
+            className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${inputMode === 'video' ? 'bg-white text-accent shadow-sm' : 'text-gray-500'}`}>
+            Upload Video
+          </button>
+        </div>
+      )}
+
+      {/* Video upload mode */}
+      {inputMode === 'video' && !isEditing && (
+        <VideoUpload onAnalysisComplete={handleVideoAnalysis} />
+      )}
+
+      {/* AI-filled notice */}
+      {aiFields.size > 0 && inputMode === 'manual' && (
+        <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-center gap-2">
+          <span className="text-blue-500 text-sm">🤖</span>
+          <p className="text-xs text-blue-600">
+            AI pre-filled {aiFields.size} fields from your video. Review and adjust before saving.
+          </p>
+          <button type="button" onClick={() => setAiFields(new Set())} className="text-blue-400 hover:text-blue-600 ml-auto text-xs">Dismiss</button>
+        </div>
+      )}
+
       {/* Template Selector */}
-      {!isEditing && templates.length > 0 && !quickMode && (
+      {!isEditing && templates.length > 0 && !quickMode && inputMode === 'manual' && (
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-xs text-gray-400">Templates:</span>
           {templates.map(t => (
@@ -460,6 +465,7 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
         </div>
       )}
 
+      <div className={inputMode === 'video' && !isEditing ? 'hidden' : ''}>
       {/* Quick Log Mode */}
       {quickMode && !isEditing && (
         <>
@@ -508,25 +514,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
       {/* Full Log Mode */}
       {(!quickMode || isEditing) && <>
 
-      {/* Readiness Suggestion */}
-      {!isEditing && (() => {
-        const suggestion = suggestSessionType(form.bodyCheck);
-        if (!suggestion) return null;
-        const colors = { amber: 'bg-amber-50 text-amber-700 border-amber-200', green: 'bg-green-50 text-green-700 border-green-200' };
-        return (
-          <div className={`rounded-lg px-4 py-3 border text-sm ${colors[suggestion.color]}`}>
-            <p className="font-medium">{suggestion.label}</p>
-            <p className="text-xs mt-0.5 opacity-75">{suggestion.reason}</p>
-            {!form.sessionType && (
-              <button type="button" onClick={() => update('sessionType', suggestion.type)}
-                className="mt-2 text-xs font-medium underline">
-                Set as session type
-              </button>
-            )}
-          </div>
-        );
-      })()}
-
       {/* Date & Duration */}
       <Card>
         <div className="grid grid-cols-2 gap-4">
@@ -550,30 +537,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
               className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 ${errors.duration ? 'border-red-300' : 'border-gray-200'}`}
             />
             {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
-          </div>
-        </div>
-      </Card>
-
-      {/* Body Check */}
-      <Card>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Pre-Session Body Check</h3>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-4">
-            <NumInput label="Sleep (hours)" value={form.bodyCheck.sleepHours} onChange={v => update('bodyCheck.sleepHours', v)} step="0.5" />
-            <NumInput label="HRV (ms)" value={form.bodyCheck.hrv} onChange={v => update('bodyCheck.hrv', v)} placeholder="e.g. 65" />
-          </div>
-          <ScaleInput label="Hydration" value={form.bodyCheck.hydration} onChange={v => update('bodyCheck.hydration', v)} lowLabel="Low" highLabel="High" />
-          <ScaleInput label="Energy" value={form.bodyCheck.energy} onChange={v => update('bodyCheck.energy', v)} lowLabel="Low" highLabel="High" />
-          <ScaleInput label="Soreness" value={form.bodyCheck.soreness} onChange={v => update('bodyCheck.soreness', v)} lowLabel="None" highLabel="Very" />
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Injury Notes (optional)</label>
-            <input
-              type="text"
-              value={form.bodyCheck.injuryNotes}
-              onChange={e => update('bodyCheck.injuryNotes', e.target.value)}
-              placeholder="Any niggles or pain..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
           </div>
         </div>
       </Card>
@@ -679,13 +642,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
             </button>
             <button
               type="button"
-              onClick={() => setShowPhaseBreakdown(!showPhaseBreakdown)}
-              className="text-xs text-accent hover:underline"
-            >
-              {showPhaseBreakdown ? 'Hide' : 'Show'} phase breakdown (early/mid/late)
-            </button>
-            <button
-              type="button"
               onClick={() => setShowShotDetails(!showShotDetails)}
               className="text-xs text-accent hover:underline"
             >
@@ -707,22 +663,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
                   <NumInput label="Shots" value={form.shooting.rightFoot.shots} onChange={v => update('shooting.rightFoot.shots', v)} />
                   <NumInput label="Goals" value={form.shooting.rightFoot.goals} onChange={v => update('shooting.rightFoot.goals', v)} />
                 </div>
-              </div>
-            </div>
-          )}
-          {showPhaseBreakdown && (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-gray-400">Break down shooting by session phase</p>
-              <div className="grid grid-cols-3 gap-3">
-                {['early', 'mid', 'late'].map(phase => (
-                  <div key={phase}>
-                    <p className="text-xs font-medium text-gray-500 mb-2 capitalize">{phase}</p>
-                    <NumInput label="Shots" value={form.shooting.phases[phase].shots} onChange={v => update(`shooting.phases.${phase}.shots`, v)} />
-                    <div className="mt-1">
-                      <NumInput label="Goals" value={form.shooting.phases[phase].goals} onChange={v => update(`shooting.phases.${phase}.goals`, v)} />
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}
@@ -797,22 +737,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
                 : '\u2014'}
             </p>
           )}
-          {showPhaseBreakdown && (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-gray-400">Early vs late passing</p>
-              <div className="grid grid-cols-2 gap-4">
-                {['early', 'late'].map(phase => (
-                  <div key={phase}>
-                    <p className="text-xs font-medium text-gray-500 mb-2 capitalize">{phase}</p>
-                    <NumInput label="Attempts" value={form.passing.phases[phase].attempts} onChange={v => update(`passing.phases.${phase}.attempts`, v)} />
-                    <div className="mt-1">
-                      <NumInput label="Completed" value={form.passing.phases[phase].completed} onChange={v => update(`passing.phases.${phase}.completed`, v)} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </Card>
       )}
 
@@ -824,24 +748,6 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
             <NumInput label="Sprints Completed" value={form.fitness.sprints} onChange={v => update('fitness.sprints', v)} />
             <NumInput label={`Distance (${distanceUnit})`} value={form.fitness.distance} onChange={v => update('fitness.distance', v)} step="0.1" />
           </div>
-          {showPhaseBreakdown && (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-gray-400">Rate sprint quality per phase</p>
-              <div className="grid grid-cols-2 gap-4">
-                {['early', 'late'].map(phase => (
-                  <div key={phase}>
-                    <ScaleInput
-                      label={`${phase.charAt(0).toUpperCase() + phase.slice(1)} Sprint Quality`}
-                      value={form.fitness.phases[phase].sprintQuality}
-                      onChange={v => update(`fitness.phases.${phase}.sprintQuality`, v)}
-                      lowLabel="Poor"
-                      highLabel="Great"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </Card>
       )}
 
@@ -915,6 +821,7 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
       </Button>
 
       </>}
+      </div>
     </form>
   );
 }

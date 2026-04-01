@@ -10,6 +10,9 @@ import { BodyCheckInsights } from './BodyCheckInsights';
 import { FatigueAnalysis } from './FatigueAnalysis';
 import { GapSuggestionsCard } from './GapSuggestionsCard';
 import { ComparisonCard } from './ComparisonCard';
+import { DailyPlanCard } from './DailyPlanCard';
+import { UpcomingSchedule } from './UpcomingSchedule';
+import { StreakXPCard } from './StreakXPCard';
 import { SessionLoadChart } from './SessionLoadChart';
 import { MentalTrendChart } from './MentalTrendChart';
 import {
@@ -93,8 +96,8 @@ function InsightsCard({ insights }) {
   );
 }
 
-export function Dashboard({ sessions, matches, personalRecords, onViewSession, decisionJournal = [], idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog }) {
-  const insights = useMemo(() => generateInsights(sessions, matches, personalRecords), [sessions, matches, personalRecords]);
+export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, assignedPlans = [], trainingPlans = [] }) {
+  const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
 
   // FOE (Finishing Over Expected) average
   const avgFOE = useMemo(() => {
@@ -204,16 +207,14 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
     return { count: linked.length, total: getCurrentWeekSessionCount(sessions) };
   }, [sessions]);
 
-  // Empty state: prompt to log first session (onboarding handles new-user setup in App.jsx)
+  // Empty state: show daily plan + prompt
   if (sessions.length === 0) {
     return (
-      <div className="space-y-6 max-w-3xl mx-auto">
+      <div className="space-y-5 max-w-3xl mx-auto">
         <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
-        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-8 text-center" style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Ready to Train</h3>
-          <p className="text-sm text-gray-500 mb-6">Log your first session to unlock your personal dashboard.</p>
-          {onNavigateToLog && <Button onClick={onNavigateToLog}>Log Your First Session</Button>}
-        </div>
+        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} />
+        <UpcomingSchedule assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
+        <StreakXPCard sessions={sessions} />
       </div>
     );
   }
@@ -222,7 +223,7 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
   const streak = getStreak(sessions);
   const avgShot = getAverageStat(sessions, getShotPercentage, 7);
   const avgPass = getAverageStat(sessions, getPassPercentage, 7);
-  const matchStats = getMatchStats(matches);
+  const matchStats = getMatchStats([]);
 
   const recentSessions = [...sessions]
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -238,7 +239,7 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
         if (!trainingScore) return (
           <div className="flex gap-4 items-start">
             <div className="flex-1">
-              <WeeklyReport sessions={sessions} matches={matches} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
+              <WeeklyReport sessions={sessions} matches={[]} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
             </div>
             <div className="flex flex-col items-center pt-4">
               <GoalRing current={getCurrentWeekSessionCount(sessions)} goal={weeklyGoal} />
@@ -271,20 +272,31 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
               </div>
             </div>
             {/* Weekly Report — only shown alongside Training Score hero */}
-            <WeeklyReport sessions={sessions} matches={matches} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
+            <WeeklyReport sessions={sessions} matches={[]} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
           </>
         );
       })()}
 
+      {/* Daily Plan */}
+      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} />
+
+      {/* Upcoming Schedule */}
+      <UpcomingSchedule assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
+
+      {/* Streak + XP */}
+      <StreakXPCard sessions={sessions} />
+
+      {/* Social Feed */}
+      <SocialFeed />
+
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <StatCard label="Total Sessions" value={totalSessions} />
-        <StatCard label="Current Streak" value={`${streak} day${streak !== 1 ? 's' : ''}`} />
         <StatCard label="Avg Shot %" value={avgShot !== null ? `${avgShot}%` : '\u2014'} sub="Last 7 sessions" />
         <StatCard label="Avg Pass %" value={avgPass !== null ? `${avgPass}%` : '\u2014'} sub="Last 7 sessions" />
       </div>
 
-      {/* Peer Comparison — prominent position */}
+      {/* Peer Comparison */}
       <ComparisonCard sessions={sessions} ageGroup={ageGroup} skillLevel={skillLevel} onOpenSettings={onOpenSettings} />
 
       {/* Weekly Load Gauge */}
@@ -394,7 +406,7 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
       )}
 
       {/* Four-Pillar Development Radar */}
-      <FourPillarChart sessions={sessions} decisionJournal={decisionJournal} />
+      <FourPillarChart sessions={sessions} />
 
       {/* AI Insights - Coach's Notes */}
       {insights.length > 0 && <InsightsCard insights={insights} />}
@@ -416,15 +428,6 @@ export function Dashboard({ sessions, matches, personalRecords, onViewSession, d
         </div>
       )}
 
-      {/* Match Stats */}
-      {matches.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Matches" value={matchStats.total} />
-          <StatCard label="Win Rate" value={`${matchStats.winRate}%`} sub={`${matchStats.wins}W ${matchStats.draws}D ${matchStats.losses}L`} />
-          <StatCard label="Avg Rating" value={matchStats.avgRating ?? '\u2014'} sub="out of 10" />
-          <StatCard label="Goals" value={matchStats.totalGoals} sub={`${matchStats.totalAssists} assist${matchStats.totalAssists !== 1 ? 's' : ''}`} />
-        </div>
-      )}
 
       {/* Due This Week - IDP Goals */}
       {(() => {

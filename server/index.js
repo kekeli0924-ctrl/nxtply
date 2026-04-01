@@ -12,16 +12,19 @@ import { getDb, resetDb } from './db.js';
 import { authMiddleware, authRouter } from './auth.js';
 import { backupDatabase } from './backup.js';
 import sessionsRouter from './routes/sessions.js';
-import matchesRouter from './routes/matches.js';
 import customDrillsRouter from './routes/customDrills.js';
 import settingsRouter from './routes/settings.js';
 import personalRecordsRouter from './routes/personalRecords.js';
 import trainingPlansRouter from './routes/trainingPlans.js';
 import idpGoalsRouter from './routes/idpGoals.js';
-import decisionJournalRouter from './routes/decisionJournal.js';
-import benchmarksRouter from './routes/benchmarks.js';
 import templatesRouter from './routes/templates.js';
 import dataRouter from './routes/data.js';
+import rosterRouter from './routes/roster.js';
+import assignedPlansRouter from './routes/assignedPlans.js';
+import coachDashboardRouter from './routes/coachDashboard.js';
+import videoAnalysisRouter from './routes/videoAnalysis.js';
+import friendsRouter from './routes/friends.js';
+import messagingRouter from './routes/messaging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -97,7 +100,7 @@ if (isProd) {
   app.use('/api', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     const origin = req.headers.origin || req.headers.referer;
-    if (origin && !origin.startsWith(corsOrigin)) {
+    if (origin && new URL(origin).origin !== new URL(corsOrigin).origin) {
       logger.warn('CSRF origin mismatch', { origin, expected: corsOrigin });
       return res.status(403).json({ error: 'Forbidden', code: 'CSRF_ORIGIN_MISMATCH' });
     }
@@ -144,20 +147,40 @@ app.use('/api/auth', authLimiter, authRouter);
 // Protected API routes — auth required in production
 if (isProd) {
   app.use('/api', authMiddleware);
+} else {
+  // Dev mode: provide default user identity so routes always have req.userId/req.userRole
+  // userId 1 = player, userId 2 = coach (so invite codes work between them)
+  // Role is determined by: X-Dev-Role header OR cookie
+  app.use('/api', (req, res, next) => {
+    if (!req.userId) {
+      const db = getDb();
+      db.prepare("INSERT OR IGNORE INTO users (id, username, password_hash, role) VALUES (1, 'player1', 'dev', 'player')").run();
+      db.prepare("INSERT OR IGNORE INTO users (id, username, password_hash, role) VALUES (2, 'coach1', 'dev', 'coach')").run();
+
+      // Check header first, then cookie
+      const role = req.headers['x-dev-role'] || req.query._role || 'player';
+      req.userId = role === 'coach' ? 2 : 1;
+      req.userRole = role;
+    }
+    next();
+  });
 }
 
 // ── API routes ──────────────────────────────────────────
 app.use('/api/sessions', sessionsRouter);
-app.use('/api/matches', matchesRouter);
 app.use('/api/custom-drills', customDrillsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/personal-records', personalRecordsRouter);
 app.use('/api/training-plans', trainingPlansRouter);
 app.use('/api/idp-goals', idpGoalsRouter);
-app.use('/api/decision-journal', decisionJournalRouter);
-app.use('/api/benchmarks', benchmarksRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/data', dataRouter);
+app.use('/api/roster', rosterRouter);
+app.use('/api/assigned-plans', assignedPlansRouter);
+app.use('/api/coach', coachDashboardRouter);
+app.use('/api/video', videoAnalysisRouter);
+app.use('/api/friends', friendsRouter);
+app.use('/api/messages', messagingRouter);
 
 // ── API 404 ─────────────────────────────────────────────
 app.use('/api', (req, res) => {
@@ -190,7 +213,7 @@ const backupInterval = setInterval(backupDatabase, 24 * 60 * 60 * 1000);
 
 // ── Start server ────────────────────────────────────────
 const server = app.listen(PORT, () => {
-  logger.info(`NXTPLY API running on http://localhost:${PORT} (${isProd ? 'production' : 'development'})`);
+  logger.info(`Composed API running on http://localhost:${PORT} (${isProd ? 'production' : 'development'})`);
 });
 
 // ── Graceful shutdown ───────────────────────────────────

@@ -104,6 +104,21 @@ export const templateSchema = z.object({
   name: z.string().min(1).max(200),
 }).passthrough(); // allow extra data fields
 
+// Roster / invite
+export const redeemInviteSchema = z.object({
+  code: z.string().min(4).max(20),
+}).strict();
+
+// Assigned plans (coach → player)
+export const assignedPlanSchema = z.object({
+  id: uuid,
+  playerId: z.coerce.number().int(),
+  date: dateStr,
+  drills: z.array(z.string().max(200)).max(50).default([]),
+  targetDuration: z.coerce.number().int().min(0).max(1440).default(0),
+  notes: shortText,
+}).strict();
+
 // Middleware factory
 export function validate(schema) {
   return (req, res, next) => {

@@ -7,8 +7,12 @@ function notifyError(message) {
 }
 
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+  // In dev mode, include role so backend knows which user to use
+  const role = window.__COMPOSED_ROLE__ || 'player';
+  const separator = path.includes('?') ? '&' : '?';
+  const url = `${API_BASE}${path}${separator}_role=${role}`;
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', 'X-Dev-Role': role },
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

@@ -4,55 +4,88 @@ import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionHistory } from './components/SessionHistory';
 import { DrillBreakdown } from './components/DrillBreakdown';
-import { MatchLogger } from './components/MatchLogger';
-import { MatchHistory } from './components/MatchHistory';
 import { TrainingCalendar } from './components/TrainingCalendar';
-import { BenchmarkTests } from './components/BenchmarkTests';
 import { IDPModule } from './components/IDPModule';
-import { DecisionJournal } from './components/DecisionJournal';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { CoachRoster } from './components/CoachRoster';
+import { CoachPlanAssign } from './components/CoachPlanAssign';
+import { CoachOverview } from './components/CoachOverview';
+import { CoachPlayerDetail } from './components/CoachPlayerDetail';
+import { SocialFeed } from './components/SocialFeed';
+import { CoachChat } from './components/CoachChat';
+import { SessionComments } from './components/SessionComments';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
 import { Modal, ConfirmModal } from './components/ui/Modal';
 import { OfflineIndicator } from './components/ui/OfflineIndicator';
-import { formatDate, formatPercentage, computePersonalRecords, detectNewPRs, PR_LABELS, computeFatigueDecay, diagnoseFatigue } from './utils/stats';
+import { formatDate, formatPercentage, computePersonalRecords, detectNewPRs, PR_LABELS } from './utils/stats';
+import { getNewBadges } from './utils/gamification';
 
-const TABS = [
+const PLAYER_TABS = [
   { id: 'dashboard', label: 'Home', icon: DashboardIcon },
-  { id: 'log', label: 'Log', icon: PlusIcon },
   { id: 'history', label: 'History', icon: ListIcon },
-  { id: 'matches', label: 'Matches', icon: TrophyIcon },
   { id: 'plan', label: 'Plan', icon: CalendarIcon },
+  { id: 'social', label: 'Community', icon: SocialIcon },
   { id: 'drills', label: 'Drills', icon: TargetIcon },
   { id: 'idp', label: 'IDP', icon: BrainIcon },
 ];
+
+// COACH_TABS defined after icon functions below
 
 function App() {
   // Persistent state (API-backed)
   const [sessions, setSessions, sessionsLoaded] = useApiCollection('/sessions', []);
   const [customDrills, setCustomDrills] = useApiStringList('/custom-drills', []);
   const [settings, setSettings] = useApiSingleton('/settings', { distanceUnit: 'km' });
-  const [matches, setMatches] = useApiCollection('/matches', []);
   const [personalRecords, setPersonalRecords] = useApiSingleton('/personal-records', null);
   const [trainingPlans, setTrainingPlans] = useApiCollection('/training-plans', []);
   const [idpGoals, setIdpGoals] = useApiCollection('/idp-goals', []);
-  const [decisionJournal, setDecisionJournal] = useApiCollection('/decision-journal', []);
-  const [benchmarks, setBenchmarks] = useApiCollection('/benchmarks', []);
   const [templates, setTemplates] = useApiCollection('/templates', []);
+
+  const [assignedPlans, setAssignedPlans] = useState([]);
+  const [myCoach, setMyCoach] = useState(null);
+
+  // Fetch coach info for player
+  useEffect(() => {
+    fetch('/api/roster/my-coach')
+      .then(r => r.ok ? r.json() : null)
+      .then(setMyCoach)
+      .catch(() => {});
+  }, []);
+
+  // Role state
+  const [userRole, setUserRole] = useState(null); // 'player' | 'coach' | null (loading)
+
+  // Sync role to window for API requests
+  useEffect(() => {
+    window.__COMPOSED_ROLE__ = userRole || 'player';
+  }, [userRole]);
+
+  // Fetch assigned plans for players (poll every 30s for coach updates)
+  useEffect(() => {
+    if (userRole === 'coach') return;
+    const fetchPlans = () => {
+      const role = window.__COMPOSED_ROLE__ || 'player';
+      fetch(`/api/assigned-plans?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+        .then(r => r.ok ? r.json() : [])
+        .then(setAssignedPlans)
+        .catch(() => {});
+    };
+    fetchPlans();
+    const interval = setInterval(fetchPlans, 30000);
+    return () => clearInterval(interval);
+  }, [userRole]);
 
   // UI state
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedCoachPlayer, setSelectedCoachPlayer] = useState(null);
   const [editSession, setEditSession] = useState(null);
   const [viewSession, setViewSession] = useState(null);
-  const [editMatch, setEditMatch] = useState(null);
-  const [viewMatch, setViewMatch] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showClearDouble, setShowClearDouble] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [matchSubView, setMatchSubView] = useState('history'); // 'history' | 'journal'
-  const [drillsSubView, setDrillsSubView] = useState('breakdown'); // 'breakdown' | 'benchmarks'
   const fileInputRef = useRef(null);
 
   const showToast = useCallback((message, variant = 'success') => {
@@ -84,12 +117,19 @@ function App() {
       return newSessions;
     });
 
-    // PR detection
+    // PR + Badge detection
     setTimeout(() => {
       const records = computePersonalRecords(newSessions);
       const newPRs = detectNewPRs(personalRecords, records);
       setPersonalRecords(records);
-      if (newPRs.length > 0) {
+
+      // Check for new badges
+      const prevSessions = newSessions.filter(s => s.id !== session.id);
+      const badges = getNewBadges(prevSessions, newSessions);
+
+      if (badges.length > 0) {
+        showToast(`${badges[0].icon} Badge unlocked: ${badges[0].name}!`);
+      } else if (newPRs.length > 0) {
         showToast(`New PR: ${PR_LABELS[newPRs[0]]}!`);
       } else {
         showToast(editSession ? 'Session updated!' : 'Session saved!');
@@ -112,34 +152,6 @@ function App() {
 
   const handleViewSession = useCallback((session) => {
     setViewSession(session);
-  }, []);
-
-  // === Match callbacks ===
-  const handleSaveMatch = useCallback((match) => {
-    setMatches(prev => {
-      const existing = prev.findIndex(m => m.id === match.id);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = match;
-        return updated;
-      }
-      return [...prev, match];
-    });
-    setEditMatch(null);
-    showToast(editMatch?.id ? 'Match updated!' : 'Match saved!');
-  }, [setMatches, showToast, editMatch]);
-
-  const handleDeleteMatch = useCallback((id) => {
-    setMatches(prev => prev.filter(m => m.id !== id));
-    showToast('Match deleted');
-  }, [setMatches, showToast]);
-
-  const handleEditMatch = useCallback((match) => {
-    setEditMatch(match);
-  }, []);
-
-  const handleViewMatch = useCallback((match) => {
-    setViewMatch(match);
   }, []);
 
   // === Plan callbacks ===
@@ -170,7 +182,7 @@ function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `nxtply-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `composed-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       showToast('Data exported');
@@ -221,9 +233,6 @@ function App() {
     }
   }, [showToast]);
 
-  const handleSaveBenchmark = useCallback((benchmark) => {
-    setBenchmarks(prev => [...prev, benchmark]);
-  }, [setBenchmarks]);
 
   const handleAddCustomDrill = useCallback((name) => {
     setCustomDrills(prev => [...prev, name]);
@@ -233,11 +242,27 @@ function App() {
     setSettings(prev => ({ ...prev, distanceUnit: prev.distanceUnit === 'km' ? 'mi' : 'km' }));
   }, [setSettings]);
 
+  const handleStartPlan = useCallback((plan) => {
+    setEditSession(null);
+    setActiveTab('log');
+    // Pre-fill will happen via a ref or state — for now just navigate
+    // The SessionLogger will pick up the plan drills from a brief timeout
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('prefill-session', { detail: plan }));
+    }, 100);
+  }, []);
+
   const handleTabClick = (tabId) => {
     setActiveTab(tabId);
     if (tabId !== 'log') setEditSession(null);
-    if (tabId !== 'matches') { setEditMatch(null); setMatchSubView('history'); }
-    if (tabId !== 'drills') { setDrillsSubView('breakdown'); }
+    // Refresh assigned plans when going to dashboard
+    if (tabId === 'dashboard' && userRole !== 'coach') {
+      const role = window.__COMPOSED_ROLE__ || 'player';
+      fetch(`/api/assigned-plans?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+        .then(r => r.ok ? r.json() : [])
+        .then(setAssignedPlans)
+        .catch(() => {});
+    }
   };
 
   return (
@@ -246,11 +271,11 @@ function App() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30" role="banner">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-accent">NXTPLY</h1>
+          <h1 className="text-xl font-semibold text-accent tracking-tight">Composed</h1>
           <Button variant="ghost" onClick={() => setShowSettings(true)} aria-label="Settings"><SettingsIcon /></Button>
         </div>
         <nav className="hidden md:flex max-w-3xl mx-auto px-4 gap-1" aria-label="Main navigation">
-          {TABS.map(tab => (
+          {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
             <button
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
@@ -271,14 +296,16 @@ function App() {
           <OnboardingFlow
             settings={settings}
             onComplete={(data) => {
-              setSettings(prev => ({ ...prev, ...data }));
-              setActiveTab('log');
+              const { role, ...settingsData } = data;
+              setUserRole(role || 'player');
+              setSettings(prev => ({ ...prev, ...settingsData }));
+              setActiveTab(role === 'coach' ? 'roster' : 'dashboard');
             }}
           />
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} matches={matches} personalRecords={personalRecords} onViewSession={handleViewSession} decisionJournal={decisionJournal} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} />
+          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} assignedPlans={assignedPlans} trainingPlans={trainingPlans} />
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
           <SessionLogger onSave={handleSaveSession} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} />
@@ -286,47 +313,36 @@ function App() {
         <div className={activeTab === 'history' ? '' : 'hidden'}>
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} />
         </div>
-        <div className={activeTab === 'matches' ? '' : 'hidden'}>
-          {editMatch !== null ? (
-            <MatchLogger onSave={handleSaveMatch} editMatch={editMatch} onCancel={() => setEditMatch(null)} />
-          ) : (
-            <>
-              <div className="flex gap-2 mb-4">
-                <button onClick={() => setMatchSubView('history')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${matchSubView === 'history' ? 'bg-accent text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                  Match History
-                </button>
-                <button onClick={() => setMatchSubView('journal')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${matchSubView === 'journal' ? 'bg-accent text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                  Decision Journal
-                </button>
-              </div>
-              {matchSubView === 'history' ? (
-                <MatchHistory matches={matches} onEdit={handleEditMatch} onDelete={handleDeleteMatch} onView={handleViewMatch} onNewMatch={() => setEditMatch({})} />
-              ) : (
-                <DecisionJournal entries={decisionJournal} onSaveEntries={setDecisionJournal} />
-              )}
-            </>
-          )}
-        </div>
         <div className={activeTab === 'plan' ? '' : 'hidden'}>
-          <TrainingCalendar plans={trainingPlans} sessions={sessions} customDrills={customDrills} onSavePlan={handleSavePlan} onDeletePlan={handleDeletePlan} />
+          <TrainingCalendar plans={trainingPlans} sessions={sessions} customDrills={customDrills} onSavePlan={handleSavePlan} onDeletePlan={handleDeletePlan} assignedPlans={assignedPlans} />
+        </div>
+        <div className={activeTab === 'social' ? '' : 'hidden'}>
+          <div className="space-y-5 max-w-3xl mx-auto">
+            <h2 className="text-xl font-bold text-gray-900">Community</h2>
+            <CoachChat coachId={myCoach?.coachId} coachName={myCoach?.coachName} />
+            <SocialFeed />
+          </div>
         </div>
         <div className={activeTab === 'drills' ? '' : 'hidden'}>
-          <div className="flex gap-2 mb-4">
-            <button onClick={() => setDrillsSubView('breakdown')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${drillsSubView === 'breakdown' ? 'bg-accent text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              Drill Breakdown
-            </button>
-            <button onClick={() => setDrillsSubView('benchmarks')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${drillsSubView === 'benchmarks' ? 'bg-accent text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              Benchmarks
-            </button>
-          </div>
-          {drillsSubView === 'breakdown' ? (
-            <DrillBreakdown sessions={sessions} customDrills={customDrills} />
-          ) : (
-            <BenchmarkTests benchmarks={benchmarks} onSaveBenchmark={handleSaveBenchmark} />
-          )}
+          <DrillBreakdown sessions={sessions} customDrills={customDrills} />
         </div>
         <div className={activeTab === 'idp' ? '' : 'hidden'}>
           <IDPModule goals={idpGoals} onSaveGoals={setIdpGoals} sessions={sessions} />
+        </div>
+
+        {/* Coach views */}
+        <div className={activeTab === 'roster' ? '' : 'hidden'}>
+          {selectedCoachPlayer ? (
+            <CoachPlayerDetail player={selectedCoachPlayer} onBack={() => setSelectedCoachPlayer(null)} />
+          ) : (
+            <CoachRoster onSelectPlayer={setSelectedCoachPlayer} />
+          )}
+        </div>
+        <div className={activeTab === 'assign' ? '' : 'hidden'}>
+          <CoachPlanAssign />
+        </div>
+        <div className={activeTab === 'overview' ? '' : 'hidden'}>
+          <CoachOverview />
         </div>
         </>
         )}
@@ -335,7 +351,7 @@ function App() {
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-card z-30" aria-label="Main navigation">
         <div className="flex">
-          {TABS.map(tab => (
+          {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
             <button
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
@@ -362,35 +378,16 @@ function App() {
           </>
         }
       >
-        {viewSession && <SessionDetail session={viewSession} />}
-      </Modal>
-
-      {/* Match Detail Modal */}
-      <Modal
-        open={!!viewMatch}
-        onClose={() => setViewMatch(null)}
-        title={viewMatch ? `Match \u2014 ${formatDate(viewMatch.date)}` : ''}
-        actions={
+        {viewSession && (
           <>
-            <Button variant="secondary" onClick={() => setViewMatch(null)}>Close</Button>
-            <Button onClick={() => { handleEditMatch(viewMatch); setViewMatch(null); }}>Edit</Button>
-          </>
-        }
-      >
-        {viewMatch && (
-          <>
-            <MatchDetail match={viewMatch} />
+            <SessionDetail session={viewSession} />
             <div className="mt-4 pt-4 border-t border-gray-100">
-              <DecisionJournal
-                entries={decisionJournal}
-                onSaveEntries={setDecisionJournal}
-                matchId={viewMatch.id}
-                matchLabel={`vs ${viewMatch.opponent}`}
-              />
+              <SessionComments sessionId={viewSession.id} />
             </div>
           </>
         )}
       </Modal>
+
 
       {/* Settings Modal */}
       <Modal
@@ -400,6 +397,25 @@ function App() {
         actions={<Button variant="secondary" onClick={() => setShowSettings(false)}>Close</Button>}
       >
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-700">Role</span>
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              {['player', 'coach'].map(r => (
+                <button
+                  key={r}
+                  onClick={() => {
+                    setUserRole(r);
+                    setActiveTab(r === 'coach' ? 'roster' : 'dashboard');
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    userRole === r ? 'bg-white text-accent shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  {r === 'player' ? 'Player' : 'Coach'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-700">Distance Unit</span>
             <Button variant="secondary" onClick={toggleUnit}>
@@ -446,6 +462,43 @@ function App() {
             </select>
           </div>
           <hr className="border-gray-100" />
+          {/* Join Coach */}
+          <div>
+            <span className="text-sm text-gray-700 block mb-2">Join a Coach</span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                id="coach-code-input"
+                placeholder="Enter coach invite code"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+              />
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  const input = document.getElementById('coach-code-input');
+                  const code = input?.value?.trim();
+                  if (!code) return;
+                  try {
+                    const res = await fetch('/api/roster/join', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ code }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      showToast(`Joined coach: ${data.coachName}`);
+                      input.value = '';
+                    } else {
+                      showToast(data.error || 'Invalid code', 'error');
+                    }
+                  } catch { showToast('Failed to join', 'error'); }
+                }}
+              >
+                Join
+              </Button>
+            </div>
+          </div>
+          <hr className="border-gray-100" />
           <div className="space-y-2">
             <Button variant="secondary" onClick={handleExport} className="w-full" disabled={exporting}>
               {exporting ? 'Exporting...' : 'Export as JSON'}
@@ -482,23 +535,6 @@ function SessionDetail({ session }) {
           ))}
         </div>
       </div>
-      {session.bodyCheck && (
-        <div className="space-y-1">
-          <span className="text-gray-500 font-medium">Body Check</span>
-          <div className={`grid ${session.bodyCheck.hrv != null ? 'grid-cols-5' : 'grid-cols-4'} gap-2 text-center bg-gray-50 rounded-lg p-2`}>
-            <div><p className="text-xs text-gray-400">Sleep</p><p className="font-semibold">{session.bodyCheck.sleepHours}h</p></div>
-            {session.bodyCheck.hrv != null && (
-              <div><p className="text-xs text-gray-400">HRV</p><p className={`font-semibold ${session.bodyCheck.hrv >= 60 ? 'text-green-600' : session.bodyCheck.hrv >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{session.bodyCheck.hrv}ms</p></div>
-            )}
-            <div><p className="text-xs text-gray-400">Hydration</p><p className="font-semibold">{session.bodyCheck.hydration}/5</p></div>
-            <div><p className="text-xs text-gray-400">Energy</p><p className="font-semibold">{session.bodyCheck.energy}/5</p></div>
-            <div><p className="text-xs text-gray-400">Soreness</p><p className="font-semibold">{session.bodyCheck.soreness}/5</p></div>
-          </div>
-          {session.bodyCheck.injuryNotes && (
-            <p className="text-xs text-red-500">Injury: {session.bodyCheck.injuryNotes}</p>
-          )}
-        </div>
-      )}
       {session.shooting && (
         <div className="space-y-1">
           <span className="text-gray-500 font-medium">Shooting</span>
@@ -532,22 +568,6 @@ function SessionDetail({ session }) {
           {session.passing.keyPasses > 0 && <p className="text-xs text-gray-400">Key Passes: {session.passing.keyPasses}</p>}
         </div>
       )}
-      {session.delivery?.entries?.length > 0 && (
-        <div className="space-y-1">
-          <span className="text-gray-500 font-medium">Deliveries</span>
-          <div className="space-y-1">
-            {session.delivery.entries.map((e, i) => (
-              <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2 py-1.5 text-xs">
-                <span className="font-medium capitalize">{e.type?.replace('-', ' ')}</span>
-                <span className="text-gray-400">{e.targetZone?.replace('-', ' ')}</span>
-                <span className={`ml-auto font-medium ${e.quality === 'perfect' ? 'text-green-600' : e.quality === 'usable' ? 'text-amber-600' : 'text-red-500'}`}>
-                  {e.quality}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
       {session.fitness && (
         <div className="space-y-1">
           <span className="text-gray-500 font-medium">Fitness</span>
@@ -556,84 +576,6 @@ function SessionDetail({ session }) {
             {session.fitness.distance > 0 && <div><p className="text-xs text-gray-400">Distance</p><p className="font-semibold">{session.fitness.distance} {session.fitness.distanceUnit || 'km'}</p></div>}
             <div><p className="text-xs text-gray-400">RPE</p><p className="font-semibold">{session.fitness.rpe}/10</p></div>
           </div>
-        </div>
-      )}
-      {/* Phase Breakdown */}
-      {(session.shooting?.phases || session.passing?.phases || session.fitness?.phases) && (
-        <div className="space-y-1">
-          <span className="text-gray-500 font-medium">Phase Breakdown</span>
-          {session.shooting?.phases && (
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Shooting by Phase</p>
-              <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 rounded-lg p-2">
-                {['early', 'mid', 'late'].map(phase =>
-                  session.shooting.phases[phase] && (
-                    <div key={phase}>
-                      <p className="text-xs text-gray-400 capitalize">{phase}</p>
-                      <p className="font-semibold text-sm">
-                        {session.shooting.phases[phase].goals}/{session.shooting.phases[phase].shots}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatPercentage(session.shooting.phases[phase].goals, session.shooting.phases[phase].shots)}
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          )}
-          {session.passing?.phases && (
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Passing by Phase</p>
-              <div className="grid grid-cols-2 gap-2 text-center bg-gray-50 rounded-lg p-2">
-                {['early', 'late'].map(phase =>
-                  session.passing.phases[phase] && (
-                    <div key={phase}>
-                      <p className="text-xs text-gray-400 capitalize">{phase}</p>
-                      <p className="font-semibold text-sm">
-                        {session.passing.phases[phase].completed}/{session.passing.phases[phase].attempts}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatPercentage(session.passing.phases[phase].completed, session.passing.phases[phase].attempts)}
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          )}
-          {session.fitness?.phases && (
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Sprint Quality by Phase</p>
-              <div className="grid grid-cols-2 gap-2 text-center bg-gray-50 rounded-lg p-2">
-                {['early', 'late'].map(phase =>
-                  session.fitness.phases[phase] && (
-                    <div key={phase}>
-                      <p className="text-xs text-gray-400 capitalize">{phase}</p>
-                      <p className="font-semibold text-sm">{session.fitness.phases[phase].sprintQuality}/5</p>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          )}
-          {(() => {
-            const decay = computeFatigueDecay(session);
-            const diagnosis = diagnoseFatigue(session);
-            if (!decay) return null;
-            const clr = decay.score >= 80 ? 'text-green-600' : decay.score >= 60 ? 'text-amber-600' : 'text-red-500';
-            return (
-              <div className="bg-gray-50 rounded-lg p-2 mt-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Fatigue Decay Score</span>
-                  <span className={`text-sm font-bold ${clr}`}>{decay.score}/100</span>
-                </div>
-                {diagnosis && (
-                  <p className="text-xs text-gray-500 mt-1"><strong>{diagnosis.label}:</strong> {diagnosis.message}</p>
-                )}
-              </div>
-            );
-          })()}
         </div>
       )}
       {session.notes && (
@@ -655,35 +597,6 @@ function SessionDetail({ session }) {
               </a>
             ))}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MatchDetail({ match }) {
-  const resultColors = { W: 'text-green-600', D: 'text-yellow-600', L: 'text-red-600' };
-  const resultLabels = { W: 'Win', D: 'Draw', L: 'Loss' };
-  return (
-    <div className="space-y-3 text-sm">
-      <div className="flex justify-between">
-        <span className="text-gray-500">vs {match.opponent}</span>
-        <span className={`font-bold ${resultColors[match.result]}`}>{resultLabels[match.result]}</span>
-      </div>
-      <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
-        <div><p className="text-xs text-gray-400">Minutes</p><p className="font-semibold">{match.minutesPlayed}</p></div>
-        <div><p className="text-xs text-gray-400">Goals</p><p className="font-semibold">{match.goals}</p></div>
-        <div><p className="text-xs text-gray-400">Assists</p><p className="font-semibold">{match.assists}</p></div>
-        <div><p className="text-xs text-gray-400">Rating</p><p className="font-semibold">{match.rating}/10</p></div>
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-center bg-gray-50 rounded-lg p-2">
-        <div><p className="text-xs text-gray-400">Shots</p><p className="font-semibold">{match.shots}</p></div>
-        <div><p className="text-xs text-gray-400">Passes</p><p className="font-semibold">{match.passesCompleted}</p></div>
-      </div>
-      {match.notes && (
-        <div>
-          <span className="text-gray-500">Notes</span>
-          <p className="mt-1 text-gray-700 bg-gray-50 rounded-lg p-2 text-xs">{match.notes}</p>
         </div>
       )}
     </div>
@@ -712,10 +625,12 @@ function ListIcon({ active }) {
     </svg>
   );
 }
-function TrophyIcon({ active }) {
+function SocialIcon({ active }) {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8m-4-4v4m-4.5-8.5c-.83-.71-1.5-2-1.5-3.5V4h12v5c0 1.5-.67 2.79-1.5 3.5M7 4H4v3a3 3 0 003 3m10-6h3v3a3 3 0 01-3 3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
     </svg>
   );
 }
@@ -742,6 +657,22 @@ function BrainIcon({ active }) {
     </svg>
   );
 }
+function RosterIcon({ active }) {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+    </svg>
+  );
+}
+
+const COACH_TABS = [
+  { id: 'roster', label: 'Roster', icon: RosterIcon },
+  { id: 'assign', label: 'Assign', icon: CalendarIcon },
+  { id: 'overview', label: 'Overview', icon: DashboardIcon },
+];
+
 function SettingsIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

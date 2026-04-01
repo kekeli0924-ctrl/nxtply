@@ -40,6 +40,7 @@ function TagButton({ selected, onClick, children }) {
 export function OnboardingFlow({ settings, onComplete }) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
+    role: 'player',
     playerName: settings.playerName || '',
     position: 'General',
     ageGroup: '',
@@ -49,29 +50,70 @@ export function OnboardingFlow({ settings, onComplete }) {
 
   const update = (field, value) => setData(prev => ({ ...prev, [field]: value }));
 
+  const isCoach = data.role === 'coach';
+
   const canAdvance = () => {
-    if (step === 0) return true; // name is optional
-    if (step === 1) return data.ageGroup && data.skillLevel;
+    if (step === 0) return true; // role selection always valid
+    if (step === 1) return true; // name is optional
+    if (!isCoach && step === 2) return data.ageGroup && data.skillLevel;
     return true;
   };
 
   const handleFinish = () => {
     onComplete({
+      role: data.role,
       playerName: data.playerName,
-      ageGroup: data.ageGroup,
-      skillLevel: data.skillLevel,
-      weeklyGoal: data.weeklyGoal,
+      ageGroup: isCoach ? '' : data.ageGroup,
+      skillLevel: isCoach ? '' : data.skillLevel,
+      weeklyGoal: isCoach ? 3 : data.weeklyGoal,
       onboardingComplete: 1,
     });
   };
 
   const steps = [
+    // Step 0: Role Selection
+    () => (
+      <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-3">⚽</div>
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Welcome to Composed</h2>
+          <p className="text-sm text-gray-500 mt-2">How will you be using the app?</p>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            { role: 'player', icon: '🏃', title: "I'm a Player", desc: 'Track my training, log sessions, improve my game' },
+            { role: 'coach', icon: '📋', title: "I'm a Coach", desc: 'Manage players, assign plans, track progress' },
+          ].map(opt => (
+            <button
+              key={opt.role}
+              type="button"
+              onClick={() => update('role', opt.role)}
+              className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
+                data.role === opt.role
+                  ? 'border-accent bg-accent/5 shadow-sm'
+                  : 'border-gray-100 bg-white hover:border-gray-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{opt.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{opt.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    ),
+
     // Step 1: Welcome + Name + Position
     () => (
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">⚽</div>
-          <h2 className="text-xl font-bold text-gray-900">Welcome to NXTPLY</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Welcome to Composed</h2>
           <p className="text-sm text-gray-500 mt-2">Your personal soccer development tracker. Let's set up your profile.</p>
         </div>
 
@@ -81,18 +123,22 @@ export function OnboardingFlow({ settings, onComplete }) {
             type="text"
             value={data.playerName}
             onChange={e => update('playerName', e.target.value)}
-            placeholder="Player name (optional)"
+            placeholder={isCoach ? 'Name (optional)' : 'Player name (optional)'}
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/30 mb-4"
           />
 
-          <label className="block text-xs font-medium text-gray-500 mb-2">Your position</label>
-          <div className="flex flex-wrap gap-2">
-            {POSITIONS.map(pos => (
-              <TagButton key={pos} selected={data.position === pos} onClick={() => update('position', pos)}>
-                {pos}
-              </TagButton>
-            ))}
-          </div>
+          {!isCoach && (
+            <>
+              <label className="block text-xs font-medium text-gray-500 mb-2">Your position</label>
+              <div className="flex flex-wrap gap-2">
+                {POSITIONS.map(pos => (
+                  <TagButton key={pos} selected={data.position === pos} onClick={() => update('position', pos)}>
+                    {pos}
+                  </TagButton>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
       </div>
     ),
@@ -161,26 +207,62 @@ export function OnboardingFlow({ settings, onComplete }) {
             {data.weeklyGoal <= 2 && 'A solid starting point. Consistency is what matters most.'}
             {data.weeklyGoal >= 3 && data.weeklyGoal <= 4 && 'Great target for steady improvement.'}
             {data.weeklyGoal >= 5 && data.weeklyGoal <= 6 && 'Ambitious — make sure to include recovery days.'}
-            {data.weeklyGoal === 7 && 'Elite commitment. Watch your body check metrics to avoid burnout.'}
+            {data.weeklyGoal === 7 && 'Elite commitment. Make sure to include recovery days.'}
           </p>
         </Card>
       </div>
     ),
 
-    // Step 4: Feature Overview + CTA
+    // Recording Tips (player only — skipped for coach via activeSteps)
     () => (
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
-          <h2 className="text-lg font-bold text-gray-900">You're All Set!</h2>
-          <p className="text-sm text-gray-500 mt-1">Here's how NXTPLY helps you develop.</p>
+          <div className="text-3xl mb-3">📹</div>
+          <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Get the Best Results</h2>
+          <p className="text-sm text-gray-500 mt-1">Tips for recording training videos that AI can analyze accurately.</p>
         </div>
 
         <div className="space-y-3">
           {[
-            { num: 1, title: 'Log', desc: 'Track every session — shooting, passing, fitness, body check, and more.' },
+            { icon: '📐', title: 'Stable Camera', desc: 'Use a tripod or lean your phone against something steady. No handheld.' },
+            { icon: '🌅', title: 'Good Lighting', desc: 'Film in landscape mode. Natural daylight works best — avoid shadows on the ball.' },
+            { icon: '⏱️', title: 'Keep It Short', desc: 'Videos under 5 minutes analyze fastest. Break longer sessions into clips.' },
+            { icon: '🎯', title: 'Full View', desc: 'Make sure the goal/wall AND your full body are visible in frame.' },
+          ].map(tip => (
+            <Card key={tip.title}>
+              <div className="flex items-start gap-3">
+                <span className="text-xl shrink-0">{tip.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{tip.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{tip.desc}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    ),
+
+    // Feature Overview + CTA
+    () => (
+      <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 tracking-tight">You're All Set!</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {isCoach ? "Here's how Composed helps you manage players." : "Here's how Composed helps you develop."}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {(isCoach ? [
+            { num: 1, title: 'Build Your Roster', desc: 'Generate invite codes and link up with your players.' },
+            { num: 2, title: 'Assign Plans', desc: 'Create training plans on specific dates for each player.' },
+            { num: 3, title: 'Track Progress', desc: 'View stats, compliance, and development across your squad.' },
+          ] : [
+            { num: 1, title: 'Log', desc: 'Track every session — shooting, passing, fitness, and more. Or upload a video for AI analysis.' },
             { num: 2, title: 'Track', desc: 'See trends, streaks, personal records, and peer comparisons.' },
             { num: 3, title: 'Improve', desc: 'Get AI insights, gap analysis, and personalized session recommendations.' },
-          ].map(item => (
+          ]).map(item => (
             <Card key={item.num}>
               <div className="flex items-start gap-3">
                 <span className="w-7 h-7 rounded-full bg-accent text-white flex items-center justify-center text-xs font-bold shrink-0">
@@ -197,20 +279,24 @@ export function OnboardingFlow({ settings, onComplete }) {
 
         <div className="mt-6">
           <Button onClick={handleFinish} className="w-full py-3 text-base">
-            Start Training
+            {isCoach ? 'Get Started' : 'Start Training'}
           </Button>
         </div>
       </div>
     ),
   ];
 
-  const TOTAL_STEPS = steps.length;
+  // Coach skips player-specific steps (age group, weekly goal)
+  const activeSteps = isCoach
+    ? [steps[0], steps[1], steps[steps.length - 1]]  // role, name, finish
+    : steps;
+  const TOTAL_STEPS = activeSteps.length;
 
   return (
     <div className="max-w-md mx-auto py-8 px-4">
       <ProgressDots current={step} total={TOTAL_STEPS} />
 
-      {steps[step]()}
+      {activeSteps[step]()}
 
       {step < TOTAL_STEPS - 1 && (
         <div className="flex items-center justify-between mt-6">

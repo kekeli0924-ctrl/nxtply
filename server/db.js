@@ -173,6 +173,99 @@ const migrations = [
     db.exec("ALTER TABLE settings ADD COLUMN onboarding_complete INTEGER DEFAULT 0");
   }},
   { version: 3, up: (db) => db.exec("ALTER TABLE sessions ADD COLUMN media_links TEXT DEFAULT '[]'") },
+  { version: 4, up: (db) => {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'player'");
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS invite_codes (
+        code TEXT PRIMARY KEY,
+        coach_id INTEGER NOT NULL REFERENCES users(id),
+        created_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL,
+        used_by INTEGER REFERENCES users(id),
+        used_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_invite_codes_coach ON invite_codes(coach_id);
+
+      CREATE TABLE IF NOT EXISTS coach_players (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        coach_id INTEGER NOT NULL,
+        player_id INTEGER NOT NULL,
+        joined_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(coach_id, player_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_cp_coach ON coach_players(coach_id);
+      CREATE INDEX IF NOT EXISTS idx_cp_player ON coach_players(player_id);
+
+      CREATE TABLE IF NOT EXISTS assigned_plans (
+        id TEXT PRIMARY KEY,
+        coach_id INTEGER NOT NULL,
+        player_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        drills TEXT NOT NULL DEFAULT '[]',
+        target_duration INTEGER DEFAULT 0,
+        notes TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_ap_player_date ON assigned_plans(player_id, date);
+      CREATE INDEX IF NOT EXISTS idx_ap_coach ON assigned_plans(coach_id);
+    `);
+  }},
+  { version: 5, up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS video_analyses (
+        id TEXT PRIMARY KEY,
+        video_path TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        duration_seconds REAL,
+        status TEXT DEFAULT 'uploaded' CHECK(status IN ('uploaded', 'extracting', 'analyzing', 'complete', 'error')),
+        frames_extracted INTEGER DEFAULT 0,
+        analysis_result TEXT,
+        error_message TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        completed_at TEXT
+      );
+    `);
+  }},
+  { version: 6, up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS friend_connections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_a INTEGER NOT NULL,
+        user_b INTEGER NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(user_a, user_b)
+      );
+      CREATE INDEX IF NOT EXISTS idx_friends_a ON friend_connections(user_a);
+      CREATE INDEX IF NOT EXISTS idx_friends_b ON friend_connections(user_b);
+    `);
+    db.exec("ALTER TABLE invite_codes ADD COLUMN type TEXT DEFAULT 'coach'");
+    db.exec("ALTER TABLE video_analyses ADD COLUMN clip_path TEXT");
+    db.exec("ALTER TABLE video_analyses ADD COLUMN clip_timestamp REAL");
+  }},
+  { version: 7, up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_user INTEGER NOT NULL,
+        to_user INTEGER NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_messages_users ON messages(from_user, to_user);
+      CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_user);
+
+      CREATE TABLE IF NOT EXISTS session_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_comments_session ON session_comments(session_id);
+    `);
+  }},
 ];
 
 function runMigrations(db) {

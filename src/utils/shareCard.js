@@ -29,7 +29,7 @@ function drawBranding(ctx) {
   ctx.fillStyle = 'rgba(28,25,23,0.2)';
   ctx.font = 'bold 10px Inter, system-ui, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('NXTPLY', W - 16, H - 12);
+  ctx.fillText('Composed', W - 16, H - 12);
 }
 
 export function renderWeeklySummaryCard({ totalSessions, totalTime, avgShotPct, avgPassPct, weeklyLoad }) {
@@ -110,9 +110,9 @@ export function renderPRAchievementCard(prName, prValue) {
 export async function shareCanvas(canvas) {
   return new Promise((resolve) => {
     canvas.toBlob(async (blob) => {
-      if (navigator.share && navigator.canShare?.({ files: [new File([blob], 'nxtply.png', { type: 'image/png' })] })) {
+      if (navigator.share && navigator.canShare?.({ files: [new File([blob], 'composed.png', { type: 'image/png' })] })) {
         try {
-          await navigator.share({ files: [new File([blob], 'nxtply.png', { type: 'image/png' })] });
+          await navigator.share({ files: [new File([blob], 'composed.png', { type: 'image/png' })] });
           resolve(true);
           return;
         } catch { /* fallthrough */ }
@@ -121,7 +121,7 @@ export async function shareCanvas(canvas) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'nxtply.png';
+      a.download = 'composed.png';
       a.click();
       URL.revokeObjectURL(url);
       resolve(true);

@@ -34,17 +34,26 @@ export function authMiddleware(req, res, next) {
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET);
     req.userId = payload.userId;
+    req.userRole = payload.role || 'player';
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   }
 }
 
+export function requireCoach(req, res, next) {
+  if (req.userRole !== 'coach') {
+    return res.status(403).json({ error: 'Coach access required', code: 'FORBIDDEN' });
+  }
+  next();
+}
+
 const authRouter = Router();
 
 // POST /api/auth/register
 authRouter.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role } = req.body;
+  const userRole = role === 'coach' ? 'coach' : 'player';
   if (!username || !password) return res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
   if (username.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters', code: 'USERNAME_SHORT' });
   if (username.length > 50) return res.status(400).json({ error: 'Username too long', code: 'USERNAME_LONG' });
@@ -58,11 +67,11 @@ authRouter.post('/register', async (req, res) => {
   if (existing) return res.status(409).json({ error: 'Username taken', code: 'USERNAME_TAKEN' });
 
   const hash = await bcrypt.hash(password, 12);
-  const result = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, hash);
+  const result = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, hash, userRole);
   const userId = result.lastInsertRowid;
-  const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+  const token = jwt.sign({ userId, role: userRole }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
   const refreshToken = jwt.sign({ userId, type: 'refresh' }, JWT_SECRET, { expiresIn: REFRESH_EXPIRY });
-  res.status(201).json({ token, refreshToken, userId });
+  res.status(201).json({ token, refreshToken, userId, role: userRole });
 });
 
 // POST /api/auth/login
@@ -71,15 +80,15 @@ authRouter.post('/login', async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
 
   const db = getDb();
-  const user = db.prepare('SELECT id, password_hash FROM users WHERE username = ?').get(username);
+  const user = db.prepare('SELECT id, password_hash, role FROM users WHERE username = ?').get(username);
   if (!user) return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
 
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+  const token = jwt.sign({ userId: user.id, role: user.role || 'player' }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
   const refreshToken = jwt.sign({ userId: user.id, type: 'refresh' }, JWT_SECRET, { expiresIn: REFRESH_EXPIRY });
-  res.json({ token, refreshToken, userId: user.id });
+  res.json({ token, refreshToken, userId: user.id, role: user.role || 'player' });
 });
 
 // POST /api/auth/refresh
@@ -90,10 +99,50 @@ authRouter.post('/refresh', (req, res) => {
   try {
     const payload = jwt.verify(refreshToken, JWT_SECRET);
     if (payload.type !== 'refresh') return res.status(401).json({ error: 'Invalid token type', code: 'INVALID_TOKEN' });
-    const token = jwt.sign({ userId: payload.userId }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    const db = getDb();
+    const user = db.prepare('SELECT role FROM users WHERE id = ?').get(payload.userId);
+    const token = jwt.sign({ userId: payload.userId, role: user?.role || 'player' }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
     res.json({ token });
   } catch {
     return res.status(401).json({ error: 'Invalid or expired refresh token', code: 'INVALID_TOKEN' });
+  }
+});
+
+// GET /api/auth/me
+authRouter.get('/me', (req, res) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
+  }
+  try {
+    const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    const db = getDb();
+    const user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(payload.userId);
+    if (!user) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+    res.json({ userId: user.id, username: user.username, role: user.role || 'player' });
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
+  }
+});
+
+// PUT /api/auth/role
+authRouter.put('/role', (req, res) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
+  }
+  try {
+    const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    const { role } = req.body;
+    if (role !== 'coach' && role !== 'player') {
+      return res.status(400).json({ error: 'Role must be coach or player', code: 'INVALID_ROLE' });
+    }
+    const db = getDb();
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, payload.userId);
+    const token = jwt.sign({ userId: payload.userId, role }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    res.json({ role, token });
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token', code: 'INVALID_TOKEN' });
   }
 });
 
