@@ -114,6 +114,7 @@ export function IDPModule({ goals, onSaveGoals, sessions = [] }) {
         <h3 className="text-sm font-semibold text-gray-700">Individual Development Plan</h3>
         <span className="text-xs text-gray-400">FA Four Corner Model</span>
       </div>
+      <p className="text-xs text-gray-400 mt-1">Set development goals across four areas. Track your progress and link training sessions to each goal.</p>
 
       {/* Summary stats */}
       {goals.length > 0 && (
@@ -171,7 +172,7 @@ export function IDPModule({ goals, onSaveGoals, sessions = [] }) {
               <div className="px-4 pb-4 space-y-2">
                 {/* Goal list */}
                 {cGoals.length === 0 && !isAdding && (
-                  <p className="text-xs text-gray-400 italic py-2">No goals set for this area yet.</p>
+                  <p className="text-xs text-gray-400 italic py-2">No goals yet. Tap + to add your first {corner.label.toLowerCase()} goal.</p>
                 )}
                 {cGoals.map(goal => {
                   const isEditing = editingGoal === goal.id;

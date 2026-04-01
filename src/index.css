@@ -125,3 +125,7 @@ input, select, textarea {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #D5D0C8; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
+
+/* Hide horizontal scrollbar on date strip */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

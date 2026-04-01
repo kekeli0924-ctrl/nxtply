@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Card, StatCard } from './ui/Card';
 import { DrillTrendChart } from './Charts';
+import { DrillExplorer } from './DrillExplorer';
 import {
   PRESET_DRILLS, getShotPercentage, getPassPercentage,
   getAverageStat, formatPercentage, hasShootingDrill, hasPassingDrill,
@@ -59,13 +60,25 @@ export function DrillBreakdown({ sessions, customDrills }) {
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
-      <h2 className="text-xl font-bold text-gray-900">Drill Breakdown</h2>
+      <h2 className="text-xl font-bold text-gray-900">Drills</h2>
+
+      {/* Drill Explorer */}
+      <DrillExplorer />
+
+      {/* Drill Performance Stats */}
+      {drillsUsed.length > 0 && (
+        <h3 className="text-sm font-semibold text-gray-700 mt-4">My Drill Performance</h3>
+      )}
 
       {/* Drill Selector */}
       <Card>
         <label className="block text-xs font-medium text-gray-500 mb-2">Select a Drill</label>
         {drillsUsed.length === 0 ? (
-          <p className="text-sm text-gray-300">No drills used yet. Log a session first!</p>
+          <div className="text-center py-6">
+            <div className="text-3xl mb-2">🎯</div>
+            <p className="text-sm font-semibold text-gray-700">Drill insights unlock after your first session</p>
+            <p className="text-xs text-gray-400 mt-1">Once you log sessions with drills, this tab will show your per-drill performance breakdown — accuracy, frequency, and trends.</p>
+          </div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {drillsUsed.map(drill => (

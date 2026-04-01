@@ -60,6 +60,8 @@ export const settingsSchema = z.object({
   skillLevel: z.string().max(50).optional(),
   playerName: z.string().max(100).optional(),
   onboardingComplete: z.coerce.number().int().min(0).max(1).optional(),
+  gettingStartedComplete: z.coerce.number().int().min(0).max(1).optional(),
+  equipment: z.array(z.string()).optional(),
 }).strict();
 
 // Training plans

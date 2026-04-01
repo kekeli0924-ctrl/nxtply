@@ -11,8 +11,8 @@ import { FatigueAnalysis } from './FatigueAnalysis';
 import { GapSuggestionsCard } from './GapSuggestionsCard';
 import { ComparisonCard } from './ComparisonCard';
 import { DailyPlanCard } from './DailyPlanCard';
-import { UpcomingSchedule } from './UpcomingSchedule';
-import { StreakXPCard } from './StreakXPCard';
+import { GettingStartedChecklist } from './GettingStartedChecklist';
+import { DateBrowser } from './DateBrowser';
 import { SessionLoadChart } from './SessionLoadChart';
 import { MentalTrendChart } from './MentalTrendChart';
 import {
@@ -96,7 +96,7 @@ function InsightsCard({ insights }) {
   );
 }
 
-export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, assignedPlans = [], trainingPlans = [] }) {
+export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
 
   // FOE (Finishing Over Expected) average
@@ -211,10 +211,10 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
   if (sessions.length === 0) {
     return (
       <div className="space-y-5 max-w-3xl mx-auto">
-        <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
-        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} />
-        <UpcomingSchedule assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
-        <StreakXPCard sessions={sessions} />
+        <h1 className="text-2xl font-semibold text-accent tracking-tight text-center" style={{ fontFamily: "'Playfair Display', serif" }}>Composed</h1>
+        <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
+        <GettingStartedChecklist sessions={sessions} idpGoals={idpGoals} myCoach={myCoach} settings={settings} onNavigate={onNavigate} onDismiss={onDismissGettingStarted} />
+        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} assignedPlans={assignedPlans} />
       </div>
     );
   }
@@ -231,7 +231,13 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
+      <h1 className="text-2xl font-semibold text-accent tracking-tight text-center" style={{ fontFamily: "'Playfair Display', serif" }}>Composed</h1>
+
+      {/* Date Browser */}
+      <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
+
+      {/* Getting Started */}
+      <GettingStartedChecklist sessions={sessions} idpGoals={idpGoals} myCoach={myCoach} settings={settings} onNavigate={onNavigate} onDismiss={onDismissGettingStarted} />
 
       {/* Training Score Hero */}
       {(() => {
@@ -278,13 +284,10 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
       })()}
 
       {/* Daily Plan */}
-      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} />
+      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} assignedPlans={assignedPlans} />
 
-      {/* Upcoming Schedule */}
-      <UpcomingSchedule assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
 
       {/* Streak + XP */}
-      <StreakXPCard sessions={sessions} />
 
       {/* Social Feed */}
       <SocialFeed />

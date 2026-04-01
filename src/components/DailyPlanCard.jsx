@@ -3,8 +3,61 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { generateDailyPlan } from '../utils/dailyPlan';
 
-export function DailyPlanCard({ sessions, idpGoals, onStartPlan }) {
-  const plan = useMemo(() => generateDailyPlan(sessions, idpGoals), [sessions, idpGoals]);
+export function DailyPlanCard({ sessions, idpGoals, onStartPlan, assignedPlans = [] }) {
+  const today = new Date().toISOString().split('T')[0];
+
+  // If coach assigned drills for today, use those instead of the auto-generated plan
+  const coachPlanToday = useMemo(() => {
+    const assigned = assignedPlans.find(p => p.date === today);
+    if (!assigned || !assigned.drills?.length) return null;
+    return assigned;
+  }, [assignedPlans, today]);
+
+  const plan = useMemo(() => {
+    if (coachPlanToday) {
+      // Build a plan from coach's assignment
+      const DRILL_DETAILS = {
+        'Wall Passes (1-touch)': { reps: '3 sets x 20 passes', duration: 5, instruction: 'Alternate feet each set. Stay on your toes.' },
+        'Wall Passes (2-touch)': { reps: '3 sets x 15 passes', duration: 5, instruction: 'First touch to control, second to pass.' },
+        'Finishing Drill': { reps: '20 shots total', duration: 8, instruction: '10 right foot, 10 left foot. Aim corners.' },
+        'Shooting (Inside Box)': { reps: '15 shots', duration: 7, instruction: '5 right, 5 left, 5 from angles. Quick release.' },
+        'Shooting (Outside Box)': { reps: '10 shots', duration: 6, instruction: 'Focus on power and placement.' },
+        'Long Passing': { reps: '20 passes', duration: 7, instruction: 'Hit targets at 30+ yards. Lock ankle, follow through.' },
+        'Short Passing Combos': { reps: '3 sets x 2 min', duration: 6, instruction: 'Quick 1-2 touch passing.' },
+        'Crossing & Finishing': { reps: '10 crosses + finish', duration: 8, instruction: 'Alternate sides.' },
+        'Free Kicks': { reps: '15 kicks', duration: 8, instruction: '5 near post, 5 far post, 5 over wall.' },
+        'Rondo': { reps: '3 rounds x 3 min', duration: 10, instruction: 'Keep possession. 2-touch max.' },
+        'Dribbling Circuit': { reps: '5 runs through', duration: 6, instruction: 'Cones: inside-outside, drag backs, step-overs.' },
+        'Sprint Intervals': { reps: '8 x 30m sprints', duration: 8, instruction: '30 sec rest between. Max effort.' },
+      };
+
+      const timeline = [];
+      let elapsed = 0;
+      timeline.push({ name: 'Warm-up', reps: '5 min', duration: 5, instruction: 'Light jog, dynamic stretches, ball rolls.', startMin: 0, isWarmup: true });
+      elapsed = 5;
+
+      for (const drill of coachPlanToday.drills) {
+        const detail = DRILL_DETAILS[drill] || { reps: '10 min', duration: 10, instruction: 'Focus on quality.' };
+        timeline.push({ name: drill, reps: detail.reps, duration: detail.duration, instruction: detail.instruction, startMin: elapsed });
+        elapsed += detail.duration;
+      }
+
+      timeline.push({ name: 'Cool-down', reps: '5 min', duration: 5, instruction: 'Static stretches. Hold each 20-30 seconds.', startMin: elapsed, isCooldown: true });
+      elapsed += 5;
+
+      return {
+        type: 'coach',
+        focus: 'Coach\'s Plan',
+        drills: coachPlanToday.drills,
+        timeline,
+        totalDuration: elapsed,
+        targetDuration: coachPlanToday.targetDuration || elapsed,
+        motivation: coachPlanToday.notes || 'Your coach prepared this session for you. Let\'s go!',
+        xpReward: 50,
+      };
+    }
+    return generateDailyPlan(sessions, idpGoals);
+  }, [coachPlanToday, sessions, idpGoals]);
 
   if (!plan) return null;
 
@@ -37,6 +90,11 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan }) {
             <p className="text-sm font-bold text-gray-900 mt-0.5">{plan.focus}</p>
           </div>
           <div className="flex items-center gap-2">
+            {plan.type === 'coach' && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                From Coach
+              </span>
+            )}
             {plan.gapUrgency && (
               <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${urgencyColors[plan.gapUrgency] || urgencyColors.low}`}>
                 {plan.gapUrgency} priority

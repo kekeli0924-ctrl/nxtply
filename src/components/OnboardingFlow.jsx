@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 const POSITIONS = ['General', 'Winger', 'Striker', 'CAM', 'CDM', 'CB', 'GK'];
 const AGE_GROUPS = ['U12', 'U14', 'U16', 'U18', 'U21', 'Senior'];
 const SKILL_LEVELS = ['Recreational', 'Academy', 'Semi-Pro', 'Professional'];
+const EQUIPMENT_OPTIONS = ['Ball only', 'Wall / rebounder', 'Cones / markers', 'Goal / net', 'Agility ladder', 'Resistance bands'];
 
 function ProgressDots({ current, total }) {
   return (
@@ -46,6 +47,7 @@ export function OnboardingFlow({ settings, onComplete }) {
     ageGroup: '',
     skillLevel: '',
     weeklyGoal: 3,
+    equipment: ['ball'],
   });
 
   const update = (field, value) => setData(prev => ({ ...prev, [field]: value }));
@@ -66,6 +68,7 @@ export function OnboardingFlow({ settings, onComplete }) {
       ageGroup: isCoach ? '' : data.ageGroup,
       skillLevel: isCoach ? '' : data.skillLevel,
       weeklyGoal: isCoach ? 3 : data.weeklyGoal,
+      equipment: isCoach ? ['ball'] : data.equipment,
       onboardingComplete: 1,
     });
   };
@@ -209,6 +212,32 @@ export function OnboardingFlow({ settings, onComplete }) {
             {data.weeklyGoal >= 5 && data.weeklyGoal <= 6 && 'Ambitious — make sure to include recovery days.'}
             {data.weeklyGoal === 7 && 'Elite commitment. Make sure to include recovery days.'}
           </p>
+        </Card>
+
+        <Card className="mt-4">
+          <label className="block text-xs font-medium text-gray-500 mb-2">What equipment do you have?</label>
+          <div className="flex flex-wrap gap-2">
+            {EQUIPMENT_OPTIONS.map(item => {
+              const key = item.toLowerCase().split(' ')[0];
+              const isSelected = data.equipment.includes(key);
+              return (
+                <TagButton
+                  key={item}
+                  selected={isSelected}
+                  onClick={() => {
+                    setData(prev => ({
+                      ...prev,
+                      equipment: isSelected
+                        ? prev.equipment.filter(e => e !== key)
+                        : [...prev.equipment, key],
+                    }));
+                  }}
+                >
+                  {item}
+                </TagButton>
+              );
+            })}
+          </div>
         </Card>
       </div>
     ),

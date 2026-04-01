@@ -4,6 +4,7 @@ import { Card } from './ui/Card';
 export function CoachOverview() {
   const [dashboard, setDashboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [leaderboardMetric, setLeaderboardMetric] = useState('sessions');
 
   useEffect(() => {
     fetch('/api/coach/dashboard', { headers: { 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' } })
@@ -107,6 +108,70 @@ export function CoachOverview() {
               </Card>
             ))}
           </div>
+
+          {/* Team Leaderboard */}
+          {dashboard.length >= 2 && (() => {
+            const metrics = [
+              { key: 'sessions', label: 'Sessions' },
+              { key: 'compliance', label: 'Compliance' },
+              { key: 'streak', label: 'Streak' },
+            ];
+            const ranked = [...dashboard]
+              .map(p => ({
+                ...p,
+                _value:
+                  leaderboardMetric === 'sessions' ? p.sessionsLast7d :
+                  leaderboardMetric === 'compliance' ? (p.compliancePercent ?? 0) :
+                  p.sessionsLast7d, // streak uses sessions as proxy
+              }))
+              .sort((a, b) => b._value - a._value);
+            const medals = ['🥇', '🥈', '🥉'];
+
+            return (
+              <div className="mt-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Team Leaderboard</h3>
+                <div className="flex gap-2 mb-3">
+                  {metrics.map(m => (
+                    <button
+                      key={m.key}
+                      onClick={() => setLeaderboardMetric(m.key)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        leaderboardMetric === m.key
+                          ? 'bg-accent text-white'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <Card>
+                  <div className="space-y-2">
+                    {ranked.map((player, i) => (
+                      <div
+                        key={player.playerId}
+                        className={`flex items-center justify-between py-1.5 px-2 rounded ${
+                          i === 0 ? 'bg-amber-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm w-6 text-center">
+                            {i < 3 ? medals[i] : <span className="text-gray-400">{i + 1}</span>}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">{player.username}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">
+                          {leaderboardMetric === 'compliance'
+                            ? `${player._value}%`
+                            : player._value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

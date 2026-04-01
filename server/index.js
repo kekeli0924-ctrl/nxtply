@@ -24,6 +24,7 @@ import assignedPlansRouter from './routes/assignedPlans.js';
 import coachDashboardRouter from './routes/coachDashboard.js';
 import videoAnalysisRouter from './routes/videoAnalysis.js';
 import friendsRouter from './routes/friends.js';
+import drillsRouter from './routes/drills.js';
 import messagingRouter from './routes/messaging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -180,6 +181,7 @@ app.use('/api/assigned-plans', assignedPlansRouter);
 app.use('/api/coach', coachDashboardRouter);
 app.use('/api/video', videoAnalysisRouter);
 app.use('/api/friends', friendsRouter);
+app.use('/api/drills', drillsRouter);
 app.use('/api/messages', messagingRouter);
 
 // ── API 404 ─────────────────────────────────────────────

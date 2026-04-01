@@ -185,7 +185,11 @@ export function SessionHistory({ sessions, customDrills, onEdit, onDelete, onVie
 
       {/* Session List */}
       {filtered.length === 0 ? (
-        <Card className="text-center text-gray-300 text-sm py-8">No sessions found.</Card>
+        <Card className="text-center py-10">
+          <div className="text-4xl mb-3">📋</div>
+          <p className="text-sm font-semibold text-gray-700">No sessions yet</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">After your first training session, you'll see your full history here with stats, drills, and trends.</p>
+        </Card>
       ) : (
         <div className="space-y-2">
           {filtered.map((session, i) => (

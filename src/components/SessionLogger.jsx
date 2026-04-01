@@ -167,7 +167,9 @@ function sessionToForm(session) {
   };
 }
 
-export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDrill, distanceUnit, templates = [], setTemplates, idpGoals = [] }) {
+const DRILL_CATEGORIES = ['Technical', 'Physical', 'Tactical', 'Psychological', 'Warm-Up'];
+
+export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDrill, distanceUnit, templates = [], setTemplates, idpGoals = [], sessions = [] }) {
   const [form, setForm] = useState(emptyForm);
   const [newDrill, setNewDrill] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -179,8 +181,61 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [inputMode, setInputMode] = useState('manual'); // 'manual' | 'video'
   const [aiFields, setAiFields] = useState(new Set()); // track which fields were AI-filled
+  const [dbDrills, setDbDrills] = useState([]);
+  const [drillSearch, setDrillSearch] = useState('');
+  const [collapsedCategories, setCollapsedCategories] = useState({});
 
-  const allDrills = [...PRESET_DRILLS, ...customDrills];
+  // Fetch drills from database
+  useEffect(() => {
+    const headers = {};
+    if (window.__COMPOSED_ROLE__) headers['X-Dev-Role'] = window.__COMPOSED_ROLE__;
+    fetch('/api/drills', { headers })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setDbDrills(Array.isArray(data) ? data : []))
+      .catch(() => setDbDrills([]));
+  }, []);
+
+  const dbDrillNames = dbDrills.map(d => d.name || d);
+  const allDrills = [...new Set([...PRESET_DRILLS, ...dbDrillNames, ...customDrills])];
+
+  // Recently used drills from last 5 sessions
+  const recentDrills = (() => {
+    const last5 = sessions.slice(-5);
+    const seen = new Set();
+    const result = [];
+    for (const s of last5.reverse()) {
+      for (const d of (s.drills || [])) {
+        if (!seen.has(d)) { seen.add(d); result.push(d); }
+      }
+    }
+    return result;
+  })();
+
+  // Group DB drills by category
+  const drillsByCategory = (() => {
+    const groups = {};
+    for (const cat of DRILL_CATEGORIES) groups[cat] = [];
+    groups['Other'] = [];
+    for (const d of dbDrills) {
+      const name = d.name || d;
+      const cat = d.category && DRILL_CATEGORIES.includes(d.category) ? d.category : 'Other';
+      groups[cat].push(name);
+    }
+    // Add preset drills not in DB to 'Other'
+    const dbNameSet = new Set(dbDrillNames);
+    for (const d of PRESET_DRILLS) {
+      if (!dbNameSet.has(d)) groups['Other'].push(d);
+    }
+    // Add custom drills to 'Other'
+    for (const d of customDrills) {
+      if (!dbNameSet.has(d) && !PRESET_DRILLS.includes(d)) groups['Other'].push(d);
+    }
+    return groups;
+  })();
+
+  const toggleCategory = (cat) => {
+    setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
   const isEditing = !!editSession;
 
   const handleVideoAnalysis = useCallback((result) => {
@@ -547,22 +602,100 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
           Drills Performed
           {errors.drills && <span className="text-red-500 ml-2">{errors.drills}</span>}
         </label>
-        <div className="flex flex-wrap gap-2">
-          {allDrills.map(drill => (
-            <button
-              key={drill}
-              type="button"
-              onClick={() => toggleDrill(drill)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                form.drills.includes(drill)
-                  ? 'bg-accent text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {drill}
-            </button>
-          ))}
-        </div>
+
+        {/* Search input */}
+        <input
+          type="text"
+          value={drillSearch}
+          onChange={e => setDrillSearch(e.target.value)}
+          placeholder="Search drills..."
+          className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+        />
+
+        {drillSearch.trim() ? (
+          /* Filtered flat results */
+          <div className="flex flex-wrap gap-2">
+            {allDrills
+              .filter(d => d.toLowerCase().includes(drillSearch.toLowerCase()))
+              .map(drill => (
+                <button
+                  key={drill}
+                  type="button"
+                  onClick={() => toggleDrill(drill)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    form.drills.includes(drill)
+                      ? 'bg-accent text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {drill}
+                </button>
+              ))}
+          </div>
+        ) : (
+          <>
+            {/* Recently Used */}
+            {recentDrills.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-400 mb-1.5">Recently Used</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {recentDrills.map(drill => (
+                    <button
+                      key={drill}
+                      type="button"
+                      onClick={() => toggleDrill(drill)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        form.drills.includes(drill)
+                          ? 'bg-accent text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {drill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Categorized drills */}
+            {[...DRILL_CATEGORIES, 'Other'].map(cat => {
+              const drills = drillsByCategory[cat];
+              if (!drills || drills.length === 0) return null;
+              const isCollapsed = collapsedCategories[cat];
+              return (
+                <div key={cat} className="mb-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1.5 hover:text-gray-700"
+                  >
+                    <span className={`transition-transform inline-block ${isCollapsed ? '' : 'rotate-90'}`}>&#9654;</span>
+                    {cat} ({drills.length})
+                  </button>
+                  {!isCollapsed && (
+                    <div className="flex flex-wrap gap-1.5 ml-3">
+                      {drills.map(drill => (
+                        <button
+                          key={drill}
+                          type="button"
+                          onClick={() => toggleDrill(drill)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                            form.drills.includes(drill)
+                              ? 'bg-accent text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {drill}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+
         {showCustomInput ? (
           <div className="flex gap-2 mt-3">
             <input

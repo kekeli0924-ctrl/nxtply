@@ -13,12 +13,14 @@ import { CoachOverview } from './components/CoachOverview';
 import { CoachPlayerDetail } from './components/CoachPlayerDetail';
 import { SocialFeed } from './components/SocialFeed';
 import { CoachChat } from './components/CoachChat';
+import { StreakXPCard } from './components/StreakXPCard';
 import { SessionComments } from './components/SessionComments';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
 import { Modal, ConfirmModal } from './components/ui/Modal';
 import { OfflineIndicator } from './components/ui/OfflineIndicator';
-import { formatDate, formatPercentage, computePersonalRecords, detectNewPRs, PR_LABELS } from './utils/stats';
+import { formatDate, formatPercentage, computePersonalRecords, detectNewPRs, PR_LABELS, getStreak } from './utils/stats';
+import { computeXP, getLevel } from './utils/gamification';
 import { getNewBadges } from './utils/gamification';
 
 const PLAYER_TABS = [
@@ -271,8 +273,10 @@ function App() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30" role="banner">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-accent tracking-tight">Composed</h1>
-          <Button variant="ghost" onClick={() => setShowSettings(true)} aria-label="Settings"><SettingsIcon /></Button>
+          <div className="w-5" />
+          <button onClick={() => setShowSettings(true)} aria-label="Profile" className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm font-bold text-accent">
+            {settings.playerName ? settings.playerName[0]?.toUpperCase() : '⚽'}
+          </button>
         </div>
         <nav className="hidden md:flex max-w-3xl mx-auto px-4 gap-1" aria-label="Main navigation">
           {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
@@ -305,10 +309,10 @@ function App() {
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} assignedPlans={assignedPlans} trainingPlans={trainingPlans} />
+          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={(tab) => setActiveTab(tab)} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} />
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
-          <SessionLogger onSave={handleSaveSession} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} />
+          <SessionLogger onSave={handleSaveSession} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
         </div>
         <div className={activeTab === 'history' ? '' : 'hidden'}>
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} />
@@ -393,13 +397,20 @@ function App() {
       <Modal
         open={showSettings}
         onClose={() => setShowSettings(false)}
-        title="Settings & Data"
+        title=""
         actions={<Button variant="secondary" onClick={() => setShowSettings(false)}>Close</Button>}
       >
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-700">Role</span>
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+        <div className="space-y-5">
+          {/* Profile Header */}
+          <div className="text-center -mt-2">
+            <div className="w-20 h-20 rounded-full bg-accent/10 mx-auto flex items-center justify-center text-3xl">
+              {settings.playerName ? settings.playerName[0]?.toUpperCase() : '⚽'}
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mt-3">{settings.playerName || 'Player'}</h2>
+            <p className="text-xs text-gray-400">
+              {settings.ageGroup && `${settings.ageGroup} · `}{settings.skillLevel || 'Set your profile'}
+            </p>
+            <div className="flex items-center justify-center gap-1 mt-2 bg-gray-100 rounded-lg p-0.5 w-fit mx-auto">
               {['player', 'coach'].map(r => (
                 <button
                   key={r}
@@ -416,6 +427,17 @@ function App() {
               ))}
             </div>
           </div>
+
+          <hr className="border-gray-100" />
+
+          {/* Streak + XP + Badges */}
+          <StreakXPCard sessions={sessions} />
+
+          <hr className="border-gray-100" />
+
+          {/* Profile Settings */}
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Profile</p>
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-700">Distance Unit</span>
             <Button variant="secondary" onClick={toggleUnit}>
@@ -461,44 +483,43 @@ function App() {
               <option value="Professional">Professional</option>
             </select>
           </div>
+          </div>
+
           <hr className="border-gray-100" />
-          {/* Join Coach */}
-          <div>
-            <span className="text-sm text-gray-700 block mb-2">Join a Coach</span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                id="coach-code-input"
-                placeholder="Enter coach invite code"
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              />
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  const input = document.getElementById('coach-code-input');
-                  const code = input?.value?.trim();
-                  if (!code) return;
-                  try {
-                    const res = await fetch('/api/roster/join', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ code }),
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
-                      showToast(`Joined coach: ${data.coachName}`);
-                      input.value = '';
-                    } else {
-                      showToast(data.error || 'Invalid code', 'error');
-                    }
-                  } catch { showToast('Failed to join', 'error'); }
-                }}
-              >
-                Join
-              </Button>
+
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Training Setup</p>
+            <label className="block text-sm text-gray-700 mb-1">Available Equipment</label>
+            <div className="flex flex-wrap gap-2">
+              {['Ball only', 'Wall / rebounder', 'Cones / markers', 'Goal / net', 'Agility ladder', 'Resistance bands'].map(item => {
+                const key = item.toLowerCase().split(' ')[0];
+                const eq = settings.equipment || ['ball', 'wall'];
+                const isSelected = eq.includes(key);
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => {
+                      const newEq = isSelected ? eq.filter(e => e !== key) : [...eq, key];
+                      setSettings(prev => ({ ...prev, equipment: newEq }));
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      isSelected
+                        ? 'bg-accent text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
           <hr className="border-gray-100" />
+
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Data</p>
           <div className="space-y-2">
             <Button variant="secondary" onClick={handleExport} className="w-full" disabled={exporting}>
               {exporting ? 'Exporting...' : 'Export as JSON'}
@@ -506,6 +527,7 @@ function App() {
             <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="w-full">Import JSON</Button>
             <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
             <Button variant="danger" onClick={() => setShowClearConfirm(true)} className="w-full">Clear All Data</Button>
+          </div>
           </div>
         </div>
       </Modal>

@@ -10,6 +10,8 @@ export function SocialFeed() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [coachCode, setCoachCode] = useState('');
+  const [coachError, setCoachError] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
@@ -69,7 +71,45 @@ export function SocialFeed() {
 
   const visibleFeed = showAll ? feed : feed.slice(0, 5);
 
+  const joinCoach = async () => {
+    if (!coachCode.trim()) return;
+    setCoachError('');
+    try {
+      const res = await fetch('/api/roster/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: coachCode.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCoachCode('');
+        setCoachError('');
+        alert(`Joined coach: ${data.coachName}`);
+      } else {
+        setCoachError(data.error || 'Invalid code');
+      }
+    } catch { setCoachError('Failed to join'); }
+  };
+
   return (
+    <>
+    <Card>
+      <div className="space-y-3">
+        <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Join a Coach</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={coachCode}
+            onChange={e => setCoachCode(e.target.value.toUpperCase())}
+            placeholder="Enter coach invite code"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+          <Button onClick={joinCoach} disabled={!coachCode.trim()} className="!text-xs !py-1.5 !px-3">Join</Button>
+        </div>
+        {coachError && <p className="text-[10px] text-red-500">{coachError}</p>}
+      </div>
+    </Card>
+
     <Card>
       <div className="space-y-3">
         <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Activity Feed</p>
@@ -110,7 +150,8 @@ export function SocialFeed() {
         {/* Feed */}
         {feed.length === 0 ? (
           <div className="text-center py-3">
-            <p className="text-xs text-gray-400">No activity yet. Add friends to see their training!</p>
+            <p className="text-xs text-gray-400">Your friends' recent training will appear here once you're connected.</p>
+            <p className="text-[10px] text-gray-300 mt-1">↑ Search by username above to add friends</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -138,5 +179,6 @@ export function SocialFeed() {
         )}
       </div>
     </Card>
+    </>
   );
 }
