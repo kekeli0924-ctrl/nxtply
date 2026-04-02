@@ -96,7 +96,7 @@ function InsightsCard({ insights }) {
   );
 }
 
-export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted }) {
+export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
 
   // FOE (Finishing Over Expected) average
@@ -214,7 +214,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         <h1 className="text-2xl font-semibold text-accent tracking-tight text-center" style={{ fontFamily: "'Playfair Display', serif" }}>Composed</h1>
         <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
         <GettingStartedChecklist sessions={sessions} idpGoals={idpGoals} myCoach={myCoach} settings={settings} onNavigate={onNavigate} onDismiss={onDismissGettingStarted} />
-        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} />
+        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} />
       </div>
     );
   }
@@ -284,7 +284,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
       })()}
 
       {/* Daily Plan */}
-      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} />
+      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} />
 
 
       {/* Streak + XP */}

@@ -385,6 +385,155 @@ const migrations = [
   { version: 11, up: (db) => {
     db.exec("ALTER TABLE sessions ADD COLUMN session_insights TEXT DEFAULT '[]'");
   }},
+  { version: 12, up: (db) => {
+    db.exec(`
+      CREATE TABLE programs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        difficulty TEXT NOT NULL,
+        duration_weeks INTEGER NOT NULL,
+        sessions_per_week INTEGER NOT NULL,
+        is_preset INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE program_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        program_id INTEGER NOT NULL,
+        week_number INTEGER NOT NULL,
+        day_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        focus TEXT NOT NULL,
+        drills TEXT NOT NULL,
+        duration_minutes INTEGER NOT NULL,
+        coaching_notes TEXT,
+        FOREIGN KEY (program_id) REFERENCES programs(id)
+      );
+
+      CREATE TABLE user_programs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        program_id INTEGER NOT NULL,
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        current_week INTEGER DEFAULT 1,
+        current_day INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'active',
+        completed_sessions TEXT DEFAULT '[]',
+        completed_at DATETIME,
+        FOREIGN KEY (program_id) REFERENCES programs(id)
+      );
+    `);
+
+    // Seed 4 progressive training programs with detailed session data
+    db.exec(`BEGIN TRANSACTION;
+
+      -- Program 1: 4-Week Finishing Mastery (Shooting, Intermediate, 3x/week, 4 weeks = 12 sessions)
+      INSERT INTO programs (name, description, category, difficulty, duration_weeks, sessions_per_week)
+      VALUES ('4-Week Finishing Mastery', 'A progressive shooting program that builds from foundational placement technique through power striking, movement-based finishing, and pressure scenarios. Designed for players who can strike a ball cleanly but want to become clinical in front of goal.', 'Shooting', 'intermediate', 4, 3);
+
+      -- Week 1: Foundation
+      INSERT INTO program_sessions (program_id, week_number, day_number, title, focus, drills, duration_minutes, coaching_notes)
+      VALUES
+        (1, 1, 1, 'Foundation — Both Feet', 'Placement and technique with both feet', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Placement Shooting","reps":"10 shots each foot","duration":12},{"name":"Weak Foot Finishing","reps":"15 shots","duration":10},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 35, 'Focus on clean contact and hitting the corners — power comes later.'),
+        (1, 1, 2, 'Foundation — Inside the Box', 'Close-range composure and finishing', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Shooting (Inside Box)","reps":"3 sets of 10 shots","duration":15},{"name":"One-Touch Finishing","reps":"12 shots","duration":8},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 38, 'Keep your body over the ball and side-foot into the corners from close range.'),
+        (1, 1, 3, 'Foundation — Repetition & Rhythm', 'Building muscle memory through volume', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Finishing Drill","reps":"20 shots","duration":12},{"name":"Placement Shooting","reps":"15 shots","duration":10},{"name":"Foam Rolling Recovery","reps":"1 set","duration":8}]', 40, 'Volume day — do not rush between shots, reset your body shape every time.'),
+
+      -- Week 2: Power & Precision
+        (1, 2, 1, 'Power & Precision — Laces Strikes', 'Generating power with clean technique', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Power Shooting","reps":"3 sets of 8 shots","duration":15},{"name":"Shooting (Outside Box)","reps":"10 shots","duration":10},{"name":"Core Stability Routine","reps":"1 set","duration":8}]', 42, 'Plant foot beside the ball, lock your ankle, and strike through the centre.'),
+        (1, 2, 2, 'Power & Precision — Volleys', 'Striking the ball cleanly out of the air', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Volleys & Half-Volleys","reps":"20 strikes","duration":15},{"name":"One-Touch Finishing","reps":"12 shots","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 38, 'Watch the ball all the way onto your foot — timing beats power for volleys.'),
+        (1, 2, 3, 'Power & Precision — Distance Shooting', 'Accuracy from range under fatigue', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Shooting (Outside Box)","reps":"3 sets of 8 shots","duration":15},{"name":"Power Shooting","reps":"10 shots","duration":10},{"name":"Bodyweight Circuit","reps":"2 rounds","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 45, 'Shoot after short sprints to simulate match fatigue — keep technique clean.'),
+
+      -- Week 3: Movement
+        (1, 3, 1, 'Movement — Turn & Shoot', 'Receiving with back to goal and finishing', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Turning & Shooting","reps":"15 turns + shots","duration":15},{"name":"Drag Back & Turn","reps":"10 reps each side","duration":8},{"name":"Finishing Drill","reps":"10 shots","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 43, 'Sell the turn with a body feint, then accelerate into the shot.'),
+        (1, 3, 2, 'Movement — Receive & Finish', 'First touch into shooting positions', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"One-Touch Finishing","reps":"15 shots","duration":10},{"name":"Short Passing Combos","reps":"3 sets of 5 minutes","duration":15},{"name":"Shooting (Inside Box)","reps":"10 shots","duration":8},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 45, 'Set the ball with your first touch into the space where you want to shoot.'),
+        (1, 3, 3, 'Movement — Crossing & Finishing', 'Finishing from wide deliveries', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Crossing & Finishing","reps":"15 crosses + finishes","duration":15},{"name":"Volleys & Half-Volleys","reps":"12 strikes","duration":10},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 40, 'Attack the ball at the near post — do not wait for it to come to you.'),
+
+      -- Week 4: Pressure
+        (1, 4, 1, 'Pressure — Timed Finishing', 'Finishing quickly under time constraints', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Pressure Finishing","reps":"3 sets of 5 shots","duration":15},{"name":"One-Touch Finishing","reps":"10 shots","duration":8},{"name":"Shooting (Inside Box)","reps":"10 shots","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 43, 'Decide where you are shooting before the ball arrives — no extra touches.'),
+        (1, 4, 2, 'Pressure — Combination Finishing', 'Wall passes and quick combos into shots', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Short Passing Combos","reps":"3 patterns","duration":10},{"name":"Finishing Drill","reps":"15 shots","duration":12},{"name":"Turning & Shooting","reps":"10 turns","duration":8},{"name":"Core Stability Routine","reps":"1 set","duration":8}]', 45, 'Link play with a team-mate or wall before finishing — replicate match scenarios.'),
+        (1, 4, 3, 'Pressure — Dead Balls & Final Test', 'Free kicks and high-pressure finishing', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Free Kicks","reps":"15 attempts","duration":12},{"name":"Penalty Kicks","reps":"10 penalties","duration":8},{"name":"Pressure Finishing","reps":"3 sets of 5 shots","duration":12},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 44, 'Treat every dead ball like a match situation — full routine, full focus.');
+
+      -- Program 2: Ball Mastery Fundamentals (Dribbling, Beginner, 4x/week, 4 weeks = 16 sessions)
+      INSERT INTO programs (name, description, category, difficulty, duration_weeks, sessions_per_week)
+      VALUES ('Ball Mastery Fundamentals', 'Build an unshakeable foundation of close control and comfort on the ball. Starts with stationary ball manipulation and juggling, then progresses to dribbling through traffic, 1v1 moves, and speed dribbling. Perfect for beginners or anyone resetting their technical base.', 'Dribbling', 'beginner', 4, 4);
+
+      -- Week 1: Touch & Feel
+      INSERT INTO program_sessions (program_id, week_number, day_number, title, focus, drills, duration_minutes, coaching_notes)
+      VALUES
+        (2, 1, 1, 'Touch & Feel — Sole Rolls', 'Getting comfortable with the ball under your feet', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Ball Mastery Routine","reps":"3 sets of 2 minutes","duration":10},{"name":"Close Control Box","reps":"3 sets of 2 minutes","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 30, 'Use the sole of your foot to roll the ball in every direction — slow is smooth, smooth is fast.'),
+        (2, 1, 2, 'Touch & Feel — Toe Taps & Foundations', 'Rhythm and coordination with both feet', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Ball Mastery Routine","reps":"4 sets of 2 minutes","duration":12},{"name":"Juggling Progression","reps":"3 sets of 1 minute","duration":8},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 32, 'Keep your head up between touches — even at this stage, build the habit.'),
+        (2, 1, 3, 'Touch & Feel — Juggling Basics', 'Developing a soft touch and ball control in the air', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Juggling Progression","reps":"5 sets of 1 minute","duration":10},{"name":"Ball Mastery Routine","reps":"2 sets of 3 minutes","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 30, 'Let the ball drop onto your foot — do not stab at it. Cushion every touch.'),
+        (2, 1, 4, 'Touch & Feel — Combination Day', 'Mixing mastery moves with light dribbling', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Ball Mastery Routine","reps":"2 sets of 3 minutes","duration":8},{"name":"Close Control Box","reps":"3 sets of 2 minutes","duration":8},{"name":"Juggling Progression","reps":"3 sets of 1 minute","duration":5},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 33, 'Connect the moves — sole roll into a drag back, toe tap into a change of direction.'),
+
+      -- Week 2: Control Under Movement
+        (2, 2, 1, 'Control Under Movement — Cone Weaves', 'Dribbling through cones with rhythm', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Cone Weave Dribbling","reps":"8 runs","duration":12},{"name":"Ball Mastery Routine","reps":"2 sets of 2 minutes","duration":6},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 30, 'Use inside-outside touches to weave — keep the ball within one step of your body.'),
+        (2, 2, 2, 'Control Under Movement — Direction Changes', 'Sharp changes of direction at pace', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Cone Weave Dribbling","reps":"6 runs","duration":10},{"name":"Drag Back & Turn","reps":"10 reps each foot","duration":8},{"name":"Close Control Box","reps":"3 sets of 2 minutes","duration":8},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 35, 'Drop your shoulder and explode out of each turn — sell the fake.'),
+        (2, 2, 3, 'Control Under Movement — Juggling Progression', 'Increasing aerial control and confidence', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Juggling Progression","reps":"5 sets of 90 seconds","duration":12},{"name":"Ball Mastery Routine","reps":"3 sets of 2 minutes","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 32, 'Try thigh-foot-thigh patterns — add body parts as confidence grows.'),
+        (2, 2, 4, 'Control Under Movement — Tight Spaces', 'Keeping the ball in congested areas', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Close Control Box","reps":"4 sets of 2 minutes","duration":10},{"name":"Cone Weave Dribbling","reps":"6 runs","duration":8},{"name":"Ball Mastery Routine","reps":"2 sets of 2 minutes","duration":6},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 35, 'Smaller space means quicker feet — keep the ball glued to your sole.'),
+
+      -- Week 3: 1v1 Moves
+        (2, 3, 1, '1v1 Moves — La Croqueta & Drag Backs', 'Learning evasive moves to beat a defender', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"La Croqueta Drill","reps":"10 reps each side","duration":10},{"name":"Drag Back & Turn","reps":"10 reps each foot","duration":8},{"name":"Close Control Box","reps":"3 sets of 2 minutes","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 35, 'Practice the move slowly first, then add pace — the move must be automatic.'),
+        (2, 3, 2, '1v1 Moves — Decision Making', 'Choosing the right move at the right time', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Decision-Making Cones","reps":"10 scenarios","duration":12},{"name":"Cone Weave Dribbling","reps":"6 runs","duration":8},{"name":"La Croqueta Drill","reps":"8 reps each side","duration":6},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 35, 'Read the defender body shape — go the opposite way they are leaning.'),
+        (2, 3, 3, '1v1 Moves — Speed of Execution', 'Performing moves at match speed', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"La Croqueta Drill","reps":"8 reps at pace","duration":8},{"name":"Drag Back & Turn","reps":"8 reps at pace","duration":8},{"name":"Speed Dribbling","reps":"6 sprints","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 35, 'Slow feet get tackled — accelerate out of every move.'),
+        (2, 3, 4, '1v1 Moves — Combination Moves', 'Chaining moves together fluidly', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Ball Mastery Routine","reps":"2 sets of 3 minutes","duration":8},{"name":"La Croqueta Drill","reps":"6 reps","duration":5},{"name":"Drag Back & Turn","reps":"6 reps","duration":5},{"name":"Decision-Making Cones","reps":"8 scenarios","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 35, 'Chain a drag back into a La Croqueta — make the defender guess twice.'),
+
+      -- Week 4: Speed & Integration
+        (2, 4, 1, 'Speed & Integration — Speed Dribbling', 'Dribbling at pace over distance', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Speed Dribbling","reps":"8 sprints","duration":12},{"name":"Cone Weave Dribbling","reps":"6 runs at pace","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 32, 'Push the ball 2-3 yards ahead and sprint to it — bigger touches at speed.'),
+        (2, 4, 2, 'Speed & Integration — Under Pressure', 'Maintaining control with a closing defender', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Close Control Box","reps":"4 sets of 2 minutes","duration":10},{"name":"Decision-Making Cones","reps":"10 scenarios","duration":10},{"name":"Ball Mastery Routine","reps":"2 sets of 2 minutes","duration":6},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 35, 'Keep your body between the ball and the imaginary defender.'),
+        (2, 4, 3, 'Speed & Integration — Full Repertoire', 'Combining all learned skills at pace', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Speed Dribbling","reps":"6 sprints","duration":8},{"name":"La Croqueta Drill","reps":"8 reps","duration":6},{"name":"Drag Back & Turn","reps":"8 reps","duration":6},{"name":"Cone Weave Dribbling","reps":"6 runs","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 35, 'This is your showcase — every skill you have learned in four weeks, at full speed.'),
+        (2, 4, 4, 'Speed & Integration — Mastery Test', 'Assessing progress across all ball mastery skills', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Ball Mastery Routine","reps":"3 sets of 3 minutes","duration":10},{"name":"Juggling Progression","reps":"3 sets of 2 minutes","duration":8},{"name":"Close Control Box","reps":"3 sets of 2 minutes","duration":8},{"name":"Speed Dribbling","reps":"4 timed sprints","duration":6},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 35, 'Record your juggling record and dribble times — compare to week 1.');
+
+      -- Program 3: Complete Player (All-round, Intermediate, 3x/week, 4 weeks = 12 sessions)
+      INSERT INTO programs (name, description, category, difficulty, duration_weeks, sessions_per_week)
+      VALUES ('Complete Player', 'A balanced program that develops shooting, passing, dribbling, and physical fitness in every session. Intensity and complexity ramp each week, building a well-rounded player who can contribute in all phases of play.', 'All-round', 'intermediate', 4, 3);
+
+      INSERT INTO program_sessions (program_id, week_number, day_number, title, focus, drills, duration_minutes, coaching_notes)
+      VALUES
+      -- Week 1: Base Building
+        (3, 1, 1, 'Base Building — Technical Foundation', 'Passing accuracy and first touch', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Wall Passes (1-touch)","reps":"3 sets of 20 passes","duration":8},{"name":"Short Passing Combos","reps":"3 patterns","duration":10},{"name":"Finishing Drill","reps":"12 shots","duration":10},{"name":"Core Stability Routine","reps":"1 set","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 48, 'Quality over quantity — every pass should be firm and accurate.'),
+        (3, 1, 2, 'Base Building — Shooting & Strength', 'Finishing and physical conditioning', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Placement Shooting","reps":"15 shots","duration":10},{"name":"Power Shooting","reps":"10 shots","duration":8},{"name":"Bodyweight Circuit","reps":"3 rounds","duration":12},{"name":"Foam Rolling Recovery","reps":"1 set","duration":8}]', 45, 'Build strength that translates to the pitch — every exercise with intent.'),
+        (3, 1, 3, 'Base Building — Dribbling & Agility', 'Close control and change of direction', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Cone Weave Dribbling","reps":"8 runs","duration":10},{"name":"Close Control Box","reps":"3 sets of 2 minutes","duration":8},{"name":"T-Drill","reps":"6 reps","duration":8},{"name":"Zig-Zag Agility","reps":"6 reps","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 46, 'Low centre of gravity through the cones — stay on your toes.'),
+
+      -- Week 2: Building Intensity
+        (3, 2, 1, 'Building Intensity — Passing Under Pressure', 'Maintaining technique with higher tempo', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Rondo","reps":"4 sets of 3 minutes","duration":14},{"name":"First-Time Passing Combos","reps":"3 patterns","duration":10},{"name":"Shooting (Inside Box)","reps":"10 shots","duration":8},{"name":"Core Stability Routine","reps":"1 set","duration":8}]', 47, 'One and two touch only in the rondo — if you need three touches, move better.'),
+        (3, 2, 2, 'Building Intensity — Power & Finishing', 'Explosive movements into finishing', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Acceleration Sprints","reps":"6 sprints","duration":8},{"name":"Turning & Shooting","reps":"12 turns + shots","duration":12},{"name":"Volleys & Half-Volleys","reps":"15 strikes","duration":10},{"name":"Bodyweight Circuit","reps":"2 rounds","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 50, 'Sprint, then shoot — replicate the physical demands before a real chance.'),
+        (3, 2, 3, 'Building Intensity — Dribbling & Speed', 'Carrying the ball at higher pace', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Speed Dribbling","reps":"8 sprints","duration":10},{"name":"La Croqueta Drill","reps":"8 reps each side","duration":8},{"name":"Cone Shuttle Runs","reps":"6 sets","duration":8},{"name":"Ladder Footwork","reps":"6 patterns","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 46, 'Carry the ball like you are running away from someone — urgency in every touch.'),
+
+      -- Week 3: Game Application
+        (3, 3, 1, 'Game Application — Combination Play', 'Linking passes with movement and finishing', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Short Passing Combos","reps":"4 patterns","duration":12},{"name":"Through Ball Practice","reps":"10 through balls","duration":10},{"name":"One-Touch Finishing","reps":"12 shots","duration":8},{"name":"Core Stability Routine","reps":"1 set","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 50, 'Think two passes ahead — where is the ball going after your pass?'),
+        (3, 3, 2, 'Game Application — Transitions', 'Switching between attack and defence quickly', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Transition Sprints","reps":"8 transitions","duration":12},{"name":"Pressing Triggers","reps":"6 scenarios","duration":10},{"name":"Finishing Drill","reps":"10 shots","duration":8},{"name":"Bodyweight Circuit","reps":"3 rounds","duration":10},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 50, 'Win the ball back and attack within 5 seconds — transition speed wins games.'),
+        (3, 3, 3, 'Game Application — Crossing & Movement', 'Wide play and off-the-ball runs', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Crossing & Finishing","reps":"12 crosses","duration":12},{"name":"Off-The-Ball Movement","reps":"8 runs","duration":10},{"name":"Lofted Passes","reps":"10 passes","duration":8},{"name":"Single-Leg Stability","reps":"3 sets each leg","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 50, 'Time your runs to arrive with the ball — too early and you are static.'),
+
+      -- Week 4: Peak Performance
+        (3, 4, 1, 'Peak Performance — Technical Excellence', 'High-tempo technical work across all skills', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Rondo","reps":"4 sets of 3 minutes","duration":14},{"name":"One-Touch Finishing","reps":"15 shots","duration":10},{"name":"Speed Dribbling","reps":"6 sprints","duration":8},{"name":"Core Stability Routine","reps":"1 set","duration":8},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 50, 'Everything at match intensity — no coasting through any drill.'),
+        (3, 4, 2, 'Peak Performance — Physical Peak', 'Maximum output in strength and speed', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Acceleration Sprints","reps":"8 sprints","duration":10},{"name":"Plyometric Box Jumps","reps":"4 sets of 6","duration":8},{"name":"Cone Shuttle Runs","reps":"6 sets","duration":8},{"name":"Shooting (Outside Box)","reps":"10 shots","duration":8},{"name":"Bodyweight Circuit","reps":"3 rounds","duration":10},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 50, 'Push your limits today — controlled aggression in every rep.'),
+        (3, 4, 3, 'Peak Performance — Complete Test', 'Full assessment of all skills developed', '[{"name":"Ball Warm-Up","reps":"5 minutes","duration":5},{"name":"Short Passing Combos","reps":"3 patterns","duration":8},{"name":"Finishing Drill","reps":"15 shots","duration":10},{"name":"Cone Weave Dribbling","reps":"6 timed runs","duration":8},{"name":"Free Kicks","reps":"10 attempts","duration":8},{"name":"Transition Sprints","reps":"6 transitions","duration":8},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 50, 'Reflect on where you started four weeks ago — measure the progress.');
+
+      -- Program 4: Speed & Agility Camp (Physical, Beginner-Intermediate, 3x/week, 3 weeks = 9 sessions)
+      INSERT INTO programs (name, description, category, difficulty, duration_weeks, sessions_per_week)
+      VALUES ('Speed & Agility Camp', 'A focused three-week program to improve acceleration, top speed, change of direction, and deceleration. Combines sprint technique, ladder drills, and agility work with proper warm-up and recovery protocols. Suitable for players at beginner to intermediate fitness levels.', 'Physical', 'beginner-intermediate', 3, 3);
+
+      INSERT INTO program_sessions (program_id, week_number, day_number, title, focus, drills, duration_minutes, coaching_notes)
+      VALUES
+      -- Week 1: Sprint Mechanics
+        (4, 1, 1, 'Sprint Mechanics — Acceleration', 'First-step explosiveness and drive phase', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Resistance Band Warm-Up","reps":"1 set","duration":5},{"name":"Acceleration Sprints","reps":"8 sprints x 10m","duration":12},{"name":"Ladder Footwork","reps":"4 patterns","duration":6},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 35, 'Drive your knees up and forward — lean into the sprint for the first 5 steps.'),
+        (4, 1, 2, 'Sprint Mechanics — Ladder Foundations', 'Foot speed and coordination patterns', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Ladder Footwork","reps":"8 patterns","duration":15},{"name":"Reaction Sprints","reps":"6 sprints","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 35, 'Light feet, quick contacts — pretend the ground is hot under your feet.'),
+        (4, 1, 3, 'Sprint Mechanics — Deceleration Basics', 'Learning to stop and change direction safely', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Deceleration Training","reps":"8 reps","duration":12},{"name":"T-Drill","reps":"6 reps","duration":8},{"name":"Single-Leg Stability","reps":"3 sets each leg","duration":6},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 38, 'Bend your knees and lower your hips to brake — never stop with straight legs.'),
+
+      -- Week 2: Agility & Reaction
+        (4, 2, 1, 'Agility & Reaction — Change of Direction', 'Multi-directional speed and cutting', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Zig-Zag Agility","reps":"8 runs","duration":10},{"name":"T-Drill","reps":"6 reps","duration":8},{"name":"Cone Shuttle Runs","reps":"6 sets","duration":8},{"name":"Core Stability Routine","reps":"1 set","duration":5},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 40, 'Plant on the outside foot and push off hard — angle your body into the turn.'),
+        (4, 2, 2, 'Agility & Reaction — Reactive Speed', 'Reacting to cues and sprinting', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Reaction Sprints","reps":"10 sprints","duration":12},{"name":"Ladder Footwork","reps":"6 patterns","duration":10},{"name":"Acceleration Sprints","reps":"6 sprints","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 40, 'Stay on your toes in the ready position — react to the signal, not to your guess.'),
+        (4, 2, 3, 'Agility & Reaction — Power & Plyometrics', 'Building explosive leg power', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Plyometric Box Jumps","reps":"4 sets of 6","duration":10},{"name":"Cone Shuttle Runs","reps":"6 sets","duration":8},{"name":"Deceleration Training","reps":"6 reps","duration":8},{"name":"Single-Leg Stability","reps":"3 sets each leg","duration":5},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 38, 'Land softly on every jump — absorb through your ankles, knees, and hips.'),
+
+      -- Week 3: Integration & Testing
+        (4, 3, 1, 'Integration — Football-Specific Speed', 'Speed with the ball and in transitions', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Speed Dribbling","reps":"6 sprints","duration":8},{"name":"Transition Sprints","reps":"6 transitions","duration":10},{"name":"Acceleration Sprints","reps":"6 sprints","duration":8},{"name":"Core Stability Routine","reps":"1 set","duration":5},{"name":"Static Cool-Down Stretches","reps":"1 set","duration":5}]', 38, 'Carry the ball at 90% speed — keep it close enough to change direction instantly.'),
+        (4, 3, 2, 'Integration — Endurance Speed', 'Repeated sprint ability under fatigue', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Cone Shuttle Runs","reps":"8 sets","duration":12},{"name":"Zig-Zag Agility","reps":"6 runs","duration":8},{"name":"Ladder Footwork","reps":"6 patterns","duration":8},{"name":"Bodyweight Circuit","reps":"2 rounds","duration":8},{"name":"Foam Rolling Recovery","reps":"1 set","duration":5}]', 40, 'Maintain your form even when tired — technique breaks down before speed does.'),
+        (4, 3, 3, 'Integration — Speed & Agility Test', 'Measuring progress across all speed metrics', '[{"name":"Dynamic Warm-Up","reps":"1 set","duration":5},{"name":"Acceleration Sprints","reps":"3 timed sprints","duration":6},{"name":"T-Drill","reps":"3 timed reps","duration":6},{"name":"Zig-Zag Agility","reps":"3 timed runs","duration":6},{"name":"Reaction Sprints","reps":"6 sprints","duration":8},{"name":"Deceleration Training","reps":"4 reps","duration":5},{"name":"Post-Session Reflection","reps":"1 set","duration":5}]', 38, 'Record all your times and compare to week 1 — the numbers tell the story.');
+
+    COMMIT;`);
+  }},
 ];
 
 function runMigrations(db) {

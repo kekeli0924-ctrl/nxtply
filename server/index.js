@@ -26,6 +26,7 @@ import videoAnalysisRouter from './routes/videoAnalysis.js';
 import friendsRouter from './routes/friends.js';
 import drillsRouter from './routes/drills.js';
 import messagingRouter from './routes/messaging.js';
+import programsRouter from './routes/programs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -183,6 +184,7 @@ app.use('/api/video', videoAnalysisRouter);
 app.use('/api/friends', friendsRouter);
 app.use('/api/drills', drillsRouter);
 app.use('/api/messages', messagingRouter);
+app.use('/api/programs', programsRouter);
 
 // ── API 404 ─────────────────────────────────────────────
 app.use('/api', (req, res) => {

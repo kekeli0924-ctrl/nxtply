@@ -16,6 +16,7 @@ import { CoachChat } from './components/CoachChat';
 import { StreakXPCard } from './components/StreakXPCard';
 import { LiveSessionMode } from './components/LiveSessionMode';
 import { ReadinessCheck, AdaptedPlanConfirm } from './components/ReadinessCheck';
+import { ProgramsSection } from './components/ProgramsSection';
 import { SessionCompleteScreen } from './components/SessionCompleteScreen';
 import { SessionComments } from './components/SessionComments';
 import { Toast } from './components/ui/Toast';
@@ -49,8 +50,17 @@ function App() {
 
   const [assignedPlans, setAssignedPlans] = useState([]);
   const [myCoach, setMyCoach] = useState(null);
+  const [activeProgram, setActiveProgram] = useState(null);
 
-  // Fetch coach info for player
+  // Fetch coach info + active program for player
+  useEffect(() => {
+    const role = window.__COMPOSED_ROLE__ || 'player';
+    fetch(`/api/programs/active?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setActiveProgram(d?.program ? d : null))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch('/api/roster/my-coach')
       .then(r => r.ok ? r.json() : null)
@@ -388,7 +398,7 @@ function App() {
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={(tab) => setActiveTab(tab)} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} />
+          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={(tab) => setActiveTab(tab)} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} />
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
           <SessionLogger onSave={handleSaveSession} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
@@ -397,7 +407,10 @@ function App() {
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} />
         </div>
         <div className={activeTab === 'plan' ? '' : 'hidden'}>
-          <TrainingCalendar plans={trainingPlans} sessions={sessions} customDrills={customDrills} onSavePlan={handleSavePlan} onDeletePlan={handleDeletePlan} assignedPlans={assignedPlans} />
+          <div className="space-y-6 max-w-3xl mx-auto">
+            <ProgramsSection />
+            <TrainingCalendar plans={trainingPlans} sessions={sessions} customDrills={customDrills} onSavePlan={handleSavePlan} onDeletePlan={handleDeletePlan} assignedPlans={assignedPlans} />
+          </div>
         </div>
         <div className={activeTab === 'social' ? '' : 'hidden'}>
           <div className="space-y-5 max-w-3xl mx-auto">

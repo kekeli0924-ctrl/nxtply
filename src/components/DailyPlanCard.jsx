@@ -3,8 +3,16 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { generateDailyPlan } from '../utils/dailyPlan';
 
-export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, assignedPlans = [] }) {
+export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, assignedPlans = [], activeProgram }) {
   const today = new Date().toISOString().split('T')[0];
+
+  // If player has an active program, show the program session
+  const programSession = useMemo(() => {
+    if (!activeProgram?.currentSession) return null;
+    const s = activeProgram.currentSession;
+    const drills = JSON.parse(s.drills || '[]').map(d => typeof d === 'string' ? d : d.name);
+    return { ...s, drills, parsedDrills: JSON.parse(s.drills || '[]') };
+  }, [activeProgram]);
 
   // If coach assigned drills for today, use those instead of the auto-generated plan
   const coachPlanToday = useMemo(() => {
@@ -14,6 +22,43 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, 
   }, [assignedPlans, today]);
 
   const plan = useMemo(() => {
+    // Priority: coach plan > active program > auto-generated
+    if (programSession && !coachPlanToday) {
+      const DRILL_DETAILS = {
+        'Wall Passes (1-touch)': { reps: '3 sets x 20 passes', duration: 5, instruction: 'Alternate feet each set.' },
+        'Finishing Drill': { reps: '20 shots total', duration: 8, instruction: '10 right foot, 10 left foot.' },
+        'Dribbling Circuit': { reps: '5 runs through', duration: 6, instruction: 'Inside-outside, drag backs, step-overs.' },
+        'Sprint Intervals': { reps: '8 x 30m sprints', duration: 8, instruction: '30 sec rest between.' },
+      };
+
+      const timeline = [{ name: 'Warm-up', reps: '5 min', duration: 5, instruction: 'Light jog, dynamic stretches.', startMin: 0, isWarmup: true }];
+      let elapsed = 5;
+      for (const d of programSession.parsedDrills || []) {
+        const name = typeof d === 'string' ? d : d.name;
+        const detail = DRILL_DETAILS[name] || { reps: d.reps || '10 min', duration: d.duration || 10, instruction: 'Focus on quality.' };
+        timeline.push({ name, reps: d.reps || detail.reps, duration: d.duration || detail.duration, instruction: detail.instruction, startMin: elapsed });
+        elapsed += d.duration || detail.duration;
+      }
+      timeline.push({ name: 'Cool-down', reps: '5 min', duration: 5, instruction: 'Static stretches.', startMin: elapsed, isCooldown: true });
+      elapsed += 5;
+
+      return {
+        type: 'program',
+        focus: `${activeProgram.program.name} — Week ${activeProgram.currentWeek}`,
+        drills: programSession.drills,
+        timeline,
+        totalDuration: elapsed,
+        targetDuration: elapsed,
+        motivation: programSession.coaching_notes || programSession.coachingNotes || 'Follow the program. Trust the process.',
+        xpReward: 50,
+        programTitle: programSession.title,
+        programWeek: activeProgram.currentWeek,
+        programDay: activeProgram.currentDay,
+        programTotal: activeProgram.program.sessionCount,
+        programCompleted: activeProgram.completedSessions?.length || 0,
+      };
+    }
+
     if (coachPlanToday) {
       // Build a plan from coach's assignment
       const DRILL_DETAILS = {
@@ -90,6 +135,11 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, 
             <p className="text-sm font-bold text-gray-900 mt-0.5">{plan.focus}</p>
           </div>
           <div className="flex items-center gap-2">
+            {plan.type === 'program' && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
+                {plan.programCompleted + 1}/{plan.programTotal}
+              </span>
+            )}
             {plan.type === 'coach' && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
                 From Coach
