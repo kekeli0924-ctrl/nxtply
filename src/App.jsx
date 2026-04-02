@@ -14,6 +14,7 @@ import { CoachPlayerDetail } from './components/CoachPlayerDetail';
 import { SocialFeed } from './components/SocialFeed';
 import { CoachChat } from './components/CoachChat';
 import { StreakXPCard } from './components/StreakXPCard';
+import { LiveSessionMode } from './components/LiveSessionMode';
 import { SessionComments } from './components/SessionComments';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
@@ -244,14 +245,32 @@ function App() {
     setSettings(prev => ({ ...prev, distanceUnit: prev.distanceUnit === 'km' ? 'mi' : 'km' }));
   }, [setSettings]);
 
+  const [livePlan, setLivePlan] = useState(null); // Active live session plan
+
   const handleStartPlan = useCallback((plan) => {
+    // Launch Live Session Mode
+    setLivePlan(plan);
+  }, []);
+
+  const handleStartManual = useCallback((plan) => {
     setEditSession(null);
     setActiveTab('log');
-    // Pre-fill will happen via a ref or state — for now just navigate
-    // The SessionLogger will pick up the plan drills from a brief timeout
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('prefill-session', { detail: plan }));
     }, 100);
+  }, []);
+
+  const handleLiveComplete = useCallback((prefillData) => {
+    setLivePlan(null);
+    setEditSession(null);
+    setActiveTab('log');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('prefill-session', { detail: prefillData }));
+    }, 100);
+  }, []);
+
+  const handleLiveExit = useCallback(() => {
+    setLivePlan(null);
   }, []);
 
   const handleTabClick = (tabId) => {
@@ -269,6 +288,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-4">
+      {/* Live Session Mode (full-screen overlay) */}
+      {livePlan && (
+        <LiveSessionMode plan={livePlan} onComplete={handleLiveComplete} onExit={handleLiveExit} />
+      )}
       <OfflineIndicator />
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30" role="banner">
@@ -309,7 +332,7 @@ function App() {
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={(tab) => setActiveTab(tab)} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} />
+          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => setShowSettings(true)} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={(tab) => setActiveTab(tab)} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} />
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
           <SessionLogger onSave={handleSaveSession} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />

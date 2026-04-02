@@ -3,7 +3,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { generateDailyPlan } from '../utils/dailyPlan';
 
-export function DailyPlanCard({ sessions, idpGoals, onStartPlan, assignedPlans = [] }) {
+export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, assignedPlans = [] }) {
   const today = new Date().toISOString().split('T')[0];
 
   // If coach assigned drills for today, use those instead of the auto-generated plan
@@ -158,8 +158,14 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, assignedPlans =
           onClick={() => onStartPlan && onStartPlan(plan)}
           className="w-full py-2.5 text-sm"
         >
-          Start Session
+          Start Guided Session
         </Button>
+        <button
+          onClick={() => onStartManual && onStartManual(plan)}
+          className="w-full text-center text-[10px] text-gray-400 hover:text-accent mt-1"
+        >
+          Log manually instead
+        </button>
       </div>
     </Card>
   );
