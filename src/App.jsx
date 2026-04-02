@@ -637,7 +637,7 @@ function App() {
       {userRole !== 'coach' && (
         <button
           onClick={() => setShowAIChat(true)}
-          className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-12 h-12 bg-accent text-white rounded-full shadow-lg flex items-center justify-center text-lg hover:bg-accent-light transition-colors z-20"
+          className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-13 h-13 btn-warm rounded-full shadow-lg flex items-center justify-center text-lg transition-all hover:scale-105 z-20"
           aria-label="Ask Composed"
         >
           🧠

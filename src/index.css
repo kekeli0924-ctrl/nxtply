@@ -1,11 +1,15 @@
 @import "tailwindcss";
-/* Playfair Display loaded via index.html CDN */
 
 @theme {
   /* ── Accent (deep navy) ──────────────────────── */
   --color-accent: #1E3A5F;
   --color-accent-light: #2A4A73;
   --color-accent-dark: #162D4A;
+
+  /* ── Warm accent (gold) ─────────────────────── */
+  --color-warm: #C4956A;
+  --color-warm-light: #D4AB85;
+  --color-warm-dark: #A67A52;
 
   /* ── Surface tokens ──────────────────────────── */
   --color-surface: #FFFFFF;
@@ -16,8 +20,8 @@
   --color-gray-100: #F3F1EE;
   --color-gray-200: #E8E5E0;
   --color-gray-300: #D5D0C8;
-  --color-gray-400: #A8A29E;
-  --color-gray-500: #78716C;
+  --color-gray-400: #8E8880;
+  --color-gray-500: #6B6560;
   --color-gray-600: #57534E;
   --color-gray-700: #44403C;
   --color-gray-800: #292524;
@@ -50,7 +54,7 @@
   --color-yellow-500: #EAB308;
 
   /* ── Typography ──────────────────────────────── */
-  --font-sans: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
 }
 
 body {
@@ -65,6 +69,11 @@ body {
   min-height: 100dvh;
 }
 
+/* ── Serif heading class ─────────────────────── */
+.font-heading {
+  font-family: "Playfair Display", Georgia, serif;
+}
+
 input, select, textarea {
   color-scheme: light;
 }
@@ -77,9 +86,24 @@ input, select, textarea {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
+/* ── Warm CTA gradient ─────────────────────────── */
+.btn-warm {
+  background: linear-gradient(135deg, #C4956A 0%, #A67A52 100%);
+  color: white;
+  border: none;
+}
+.btn-warm:hover {
+  background: linear-gradient(135deg, #D4AB85 0%, #C4956A 100%);
+}
+
 /* ── Interactions ──────────────────────────────── */
 .btn-bounce:active {
   transform: scale(0.96);
+}
+
+/* ── Global transitions ────────────────────────── */
+.card-appear {
+  animation: fadeSlideUp 0.3s ease-out;
 }
 
 /* ── Animations ────────────────────────────────── */

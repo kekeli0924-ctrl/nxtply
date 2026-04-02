@@ -204,12 +204,12 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, 
         <p className="text-xs text-gray-500 italic leading-relaxed">{plan.motivation}</p>
 
         {/* CTA */}
-        <Button
+        <button
           onClick={() => onStartPlan && onStartPlan(plan)}
-          className="w-full py-2.5 text-sm"
+          className="w-full py-3 rounded-xl font-semibold text-sm btn-warm btn-bounce transition-all"
         >
           Start Guided Session
-        </Button>
+        </button>
         <button
           onClick={() => onStartManual && onStartManual(plan)}
           className="w-full text-center text-[10px] text-gray-400 hover:text-accent mt-1"

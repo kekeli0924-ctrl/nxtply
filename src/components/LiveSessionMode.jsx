@@ -239,7 +239,7 @@ export function LiveSessionMode({ plan, onComplete, onExit }) {
     return (
       <div className="fixed inset-0 bg-[#0F1B2D] z-50 flex flex-col items-center justify-center text-white px-6">
         <div className="text-5xl mb-4">✅</div>
-        <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Session Complete</h1>
+        <h1 className="text-3xl font-bold mb-2 font-heading">Session Complete</h1>
         <p className="text-lg text-white/60 mb-8">{formatElapsed(totalElapsed)} total</p>
 
         <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
@@ -357,7 +357,7 @@ export function LiveSessionMode({ plan, onComplete, onExit }) {
         </div>
 
         {/* Drill name */}
-        <h1 className="text-2xl font-bold text-center mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h1 className="text-2xl font-bold text-center mb-2 font-heading">
           {current.name}
         </h1>
 
@@ -414,7 +414,7 @@ function StatEntryOverlay({ drillName, type, reps, onSubmit, onSkip }) {
   return (
     <div className="fixed inset-0 bg-[#0F1B2D] z-50 flex flex-col items-center justify-center text-white px-6">
       <p className="text-xs text-white/40 mb-1">Quick Log — {countdown}s</p>
-      <h2 className="text-lg font-bold mb-1" style={{ fontFamily: "'Playfair Display', serif" }}>{drillName}</h2>
+      <h2 className="text-lg font-bold mb-1 font-heading">{drillName}</h2>
       <p className="text-xs text-white/50 mb-6">{reps}</p>
 
       <div className="w-full max-w-xs space-y-4">

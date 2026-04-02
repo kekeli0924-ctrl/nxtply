@@ -79,7 +79,7 @@ export function OnboardingFlow({ settings, onComplete }) {
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">⚽</div>
-          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Welcome to Composed</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight font-heading">Welcome to Composed</h2>
           <p className="text-sm text-gray-500 mt-2">How will you be using the app?</p>
         </div>
 
@@ -116,7 +116,7 @@ export function OnboardingFlow({ settings, onComplete }) {
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">⚽</div>
-          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Welcome to Composed</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight font-heading">Welcome to Composed</h2>
           <p className="text-sm text-gray-500 mt-2">Your personal soccer development tracker. Let's set up your profile.</p>
         </div>
 
@@ -247,7 +247,7 @@ export function OnboardingFlow({ settings, onComplete }) {
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
           <div className="text-3xl mb-3">📹</div>
-          <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Get the Best Results</h2>
+          <h2 className="text-xl font-semibold text-gray-900 tracking-tight font-heading">Get the Best Results</h2>
           <p className="text-sm text-gray-500 mt-1">Tips for recording training videos that AI can analyze accurately.</p>
         </div>
 
@@ -276,7 +276,7 @@ export function OnboardingFlow({ settings, onComplete }) {
     () => (
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 tracking-tight">You're All Set!</h2>
+          <h2 className="text-xl font-semibold text-gray-900 tracking-tight font-heading">You're All Set!</h2>
           <p className="text-sm text-gray-500 mt-1">
             {isCoach ? "Here's how Composed helps you manage players." : "Here's how Composed helps you develop."}
           </p>

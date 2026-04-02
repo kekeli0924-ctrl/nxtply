@@ -211,7 +211,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
   if (sessions.length === 0) {
     return (
       <div className="space-y-5 max-w-3xl mx-auto">
-        <h1 className="text-2xl font-semibold text-accent tracking-tight text-center" style={{ fontFamily: "'Playfair Display', serif" }}>Composed</h1>
+        <h1 className="text-2xl font-semibold text-accent tracking-tight text-center font-heading">Composed</h1>
         <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />
         <GettingStartedChecklist sessions={sessions} idpGoals={idpGoals} myCoach={myCoach} settings={settings} onNavigate={onNavigate} onDismiss={onDismissGettingStarted} />
         <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} />
@@ -231,7 +231,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-semibold text-accent tracking-tight text-center" style={{ fontFamily: "'Playfair Display', serif" }}>Composed</h1>
+      <h1 className="text-2xl font-semibold text-accent tracking-tight text-center font-heading">Composed</h1>
 
       {/* Date Browser */}
       <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} />

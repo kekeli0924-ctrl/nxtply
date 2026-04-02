@@ -62,7 +62,7 @@ export function ReadinessCheck({ plan, onComplete, onSkip }) {
       </div>
 
       {/* Question */}
-      <h2 className="text-2xl font-bold text-center mb-10" style={{ fontFamily: "'Playfair Display', serif", animation: 'fadeSlideUp 0.3s ease-out' }}>
+      <h2 className="text-2xl font-bold text-center mb-10 font-heading" style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         {current.question}
       </h2>
 
@@ -194,7 +194,7 @@ export function AdaptedPlanConfirm({ plan, onStart, onChange }) {
 
   return (
     <div className="fixed inset-0 bg-[#0F1B2D] z-50 flex flex-col items-center justify-center text-white px-6">
-      <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Your Session</h1>
+      <h1 className="text-2xl font-bold mb-2 font-heading">Your Session</h1>
 
       {/* Focus + Duration + Intensity */}
       <div className="flex items-center gap-3 mt-4 mb-6">

@@ -27,7 +27,7 @@ export function SessionCompleteScreen({ session, xpEarned, badgeUnlocked, onDone
       {/* Header */}
       <div className="text-center">
         <div className="text-4xl mb-3">✅</div>
-        <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Playfair Display', serif" }}>
+        <h1 className="text-2xl font-bold text-gray-900 font-heading">
           Session Complete
         </h1>
       </div>
