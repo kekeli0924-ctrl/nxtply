@@ -382,6 +382,9 @@ const migrations = [
   { version: 10, up: (db) => {
     db.exec("ALTER TABLE settings ADD COLUMN equipment TEXT DEFAULT '[\"ball\",\"wall\"]'");
   }},
+  { version: 11, up: (db) => {
+    db.exec("ALTER TABLE sessions ADD COLUMN session_insights TEXT DEFAULT '[]'");
+  }},
 ];
 
 function runMigrations(db) {

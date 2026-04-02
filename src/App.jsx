@@ -16,6 +16,7 @@ import { CoachChat } from './components/CoachChat';
 import { StreakXPCard } from './components/StreakXPCard';
 import { LiveSessionMode } from './components/LiveSessionMode';
 import { ReadinessCheck, AdaptedPlanConfirm } from './components/ReadinessCheck';
+import { SessionCompleteScreen } from './components/SessionCompleteScreen';
 import { SessionComments } from './components/SessionComments';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
@@ -131,17 +132,30 @@ function App() {
       const prevSessions = newSessions.filter(s => s.id !== session.id);
       const badges = getNewBadges(prevSessions, newSessions);
 
-      if (badges.length > 0) {
-        showToast(`${badges[0].icon} Badge unlocked: ${badges[0].name}!`);
-      } else if (newPRs.length > 0) {
-        showToast(`New PR: ${PR_LABELS[newPRs[0]]}!`);
+      const badge = badges.length > 0 ? badges[0] : null;
+
+      if (editSession) {
+        // Editing — just show toast
+        if (badge) showToast(`${badge.icon} Badge unlocked: ${badge.name}!`);
+        else if (newPRs.length > 0) showToast(`New PR: ${PR_LABELS[newPRs[0]]}!`);
+        else showToast('Session updated!');
       } else {
-        showToast(editSession ? 'Session updated!' : 'Session saved!');
+        // New session — fetch with insights and show complete screen
+        fetch(`/api/sessions/${session.id}`)
+          .then(r => r.ok ? r.json() : session)
+          .then(fullSession => {
+            setCompletedSession(fullSession);
+            setCompletedBadge(badge);
+          })
+          .catch(() => {
+            if (badge) showToast(`${badge.icon} Badge unlocked: ${badge.name}!`);
+            else showToast('Session saved!');
+          });
       }
     }, 0);
 
     setEditSession(null);
-    setActiveTab('dashboard');
+    if (editSession) setActiveTab('dashboard');
   }, [setSessions, showToast, editSession, personalRecords, setPersonalRecords]);
 
   const handleDeleteSession = useCallback((id) => {
@@ -247,6 +261,8 @@ function App() {
   }, [setSettings]);
 
   const [livePlan, setLivePlan] = useState(null); // Active live session plan
+  const [completedSession, setCompletedSession] = useState(null); // Session just saved, show complete screen
+  const [completedBadge, setCompletedBadge] = useState(null);
   const [readinessCheckPlan, setReadinessCheckPlan] = useState(null); // Plan awaiting readiness check
   const [adaptedPlan, setAdaptedPlan] = useState(null); // Plan after readiness adaptation
 
@@ -352,7 +368,14 @@ function App() {
 
       {/* Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
-        {sessionsLoaded && sessions.length === 0 && !settings.onboardingComplete ? (
+        {completedSession ? (
+          <SessionCompleteScreen
+            session={completedSession}
+            xpEarned={25}
+            badgeUnlocked={completedBadge}
+            onDone={() => { setCompletedSession(null); setCompletedBadge(null); setActiveTab('dashboard'); }}
+          />
+        ) : sessionsLoaded && sessions.length === 0 && !settings.onboardingComplete ? (
           <OnboardingFlow
             settings={settings}
             onComplete={(data) => {
@@ -673,6 +696,19 @@ function SessionDetail({ session }) {
                 <span className="truncate">{link.label || link.url}</span>
                 <svg className="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
               </a>
+            ))}
+          </div>
+        </div>
+      )}
+      {session.sessionInsights?.length > 0 && (
+        <div>
+          <span className="text-gray-500 font-medium">Analysis</span>
+          <div className="mt-1 space-y-1.5">
+            {session.sessionInsights.map((insight, i) => (
+              <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                <span className="text-sm shrink-0">{insight.icon}</span>
+                <p className="text-xs text-gray-600 leading-relaxed">{insight.text}</p>
+              </div>
             ))}
           </div>
         </div>

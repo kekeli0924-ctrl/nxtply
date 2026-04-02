@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { sessionSchema, validate } from '../validation.js';
+import { generateSessionInsights } from '../services/insightEngine.js';
 
 const router = Router();
 
@@ -24,6 +25,7 @@ function rowToSession(row) {
     reflection: JSON.parse(row.reflection || 'null'),
     idpGoals: JSON.parse(row.idp_goals || '[]'),
     mediaLinks: JSON.parse(row.media_links || '[]'),
+    sessionInsights: JSON.parse(row.session_insights || '[]'),
   };
 }
 
@@ -69,6 +71,15 @@ router.post('/', validate(sessionSchema), (req, res) => {
     const r = sessionToRow(req.body);
     getDb().prepare(`INSERT OR REPLACE INTO sessions (id, date, duration, drills, notes, intention, session_type, position, quick_rating, body_check, shooting, passing, fitness, delivery, attacking, reflection, idp_goals, media_links)
       VALUES (@id, @date, @duration, @drills, @notes, @intention, @session_type, @position, @quick_rating, @body_check, @shooting, @passing, @fitness, @delivery, @attacking, @reflection, @idp_goals, @media_links)`).run(r);
+
+    // Generate AI insights
+    try {
+      const insights = generateSessionInsights(r.id);
+      if (insights.length > 0) {
+        getDb().prepare('UPDATE sessions SET session_insights = ? WHERE id = ?').run(JSON.stringify(insights), r.id);
+      }
+    } catch { /* insights are optional */ }
+
     res.status(201).json(rowToSession(getDb().prepare('SELECT * FROM sessions WHERE id = ?').get(r.id)));
   } catch (err) {
     console.error('POST /api/sessions error:', err.message, 'body:', JSON.stringify(req.body).slice(0, 500));
