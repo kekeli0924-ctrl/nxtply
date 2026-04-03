@@ -45,8 +45,8 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
         <Button variant="ghost" onClick={() => setWeekOffset(w => w + 1)}>Next &rarr;</Button>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-2">
+      {/* Calendar Grid — hidden on mobile, shown on md+ */}
+      <div className="hidden md:grid grid-cols-7 gap-2">
         {weekDates.map((date, i) => {
           const plan = plansByDate[date];
           const assigned = assignedByDate[date];
@@ -57,21 +57,19 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
           return (
             <div
               key={date}
-              className={`rounded-xl border p-3 min-h-[120px] flex flex-col ${
+              className={`rounded-lg border p-2 min-h-[90px] flex flex-col ${
                 isToday ? 'border-accent bg-accent/5' : assigned ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100 bg-surface'
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className={`text-xs font-medium ${isToday ? 'text-accent' : 'text-gray-400'}`}>{DAY_NAMES[i]}</p>
-                  <p className="text-sm font-semibold text-gray-700">{formatDateShort(date)}</p>
-                </div>
-                <div className="flex items-center gap-1">
+              <div className="mb-1">
+                <p className={`text-[10px] font-medium ${isToday ? 'text-accent' : 'text-gray-400'}`}>{DAY_NAMES[i]}</p>
+                <p className="text-xs font-semibold text-gray-700">{formatDateShort(date)}</p>
+                <div className="flex items-center gap-1 mt-0.5">
                   {assigned && (
-                    <span className="text-[9px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">Coach</span>
+                    <span className="text-[8px] font-semibold text-blue-600 bg-blue-100 px-1 py-0.5 rounded-full leading-none">Coach</span>
                   )}
                   {hasSession && (
-                    <span className="text-green-500 text-lg" title="Session completed">&#10003;</span>
+                    <span className="text-green-500 text-sm">&#10003;</span>
                   )}
                 </div>
               </div>
@@ -95,7 +93,7 @@ export function TrainingCalendar({ plans, sessions, customDrills, onSavePlan, on
                 <div className="flex-1">
                   <div className="flex flex-wrap gap-1 mb-1">
                     {plan.drills.slice(0, 2).map(d => (
-                      <span key={d} className="bg-accent/10 text-accent text-[10px] px-1.5 py-0.5 rounded-full">{d}</span>
+                      <span key={d} className="bg-accent/10 text-accent text-[8px] px-1 py-0.5 rounded-full leading-tight">{d}</span>
                     ))}
                     {plan.drills.length > 2 && (
                       <span className="text-[10px] text-gray-400">+{plan.drills.length - 2}</span>
