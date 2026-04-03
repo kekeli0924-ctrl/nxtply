@@ -114,7 +114,7 @@ if (isProd) {
 // ── Rate limiting ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: isProd ? 300 : 3000, // Higher limit in dev mode
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later', code: 'RATE_LIMIT' },
