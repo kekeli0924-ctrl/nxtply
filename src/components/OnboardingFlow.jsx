@@ -78,7 +78,7 @@ export function OnboardingFlow({ settings, onComplete }) {
     () => (
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight font-heading">stay composed</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight font-heading italic">stay composed</h2>
         </div>
 
         <div className="space-y-3">
