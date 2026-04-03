@@ -216,7 +216,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         <h1 className="text-2xl font-semibold text-accent tracking-tight text-center font-heading">Composed</h1>
         <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} idpGoals={idpGoals} />
         <GettingStartedChecklist sessions={sessions} idpGoals={idpGoals} myCoach={myCoach} settings={settings} onNavigate={onNavigate} onDismiss={onDismissGettingStarted} />
-        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} />
+        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} position={settings.position || 'General'} />
       </div>
     );
   }
@@ -286,10 +286,10 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
       })()}
 
       {/* Welcome Back (3+ days inactive) */}
-      <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={onStartPlan} />
+      <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
 
       {/* Daily Plan */}
-      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} />
+      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} position={settings.position || 'General'} />
 
       {/* Progress Charts */}
       <ProgressCharts sessions={sessions} />

@@ -539,7 +539,8 @@ const migrations = [
     db.exec("ALTER TABLE idp_goals ADD COLUMN target_value REAL");
   }},
   { version: 14, up: (db) => {
-    db.exec("ALTER TABLE settings ADD COLUMN position TEXT DEFAULT 'General'");
+    // Add position column if not exists (safe for existing DBs)
+    try { db.exec("ALTER TABLE settings ADD COLUMN position TEXT DEFAULT 'General'"); } catch { /* already exists */ }
   }},
   { version: 15, up: (db) => {
     db.exec(`

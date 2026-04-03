@@ -158,7 +158,7 @@ router.post('/clear', (req, res) => {
     db.prepare('DELETE FROM sessions').run();
     db.prepare('DELETE FROM matches').run();
     db.prepare('DELETE FROM custom_drills').run();
-    db.prepare('UPDATE settings SET distance_unit=\'km\', weekly_goal=3, age_group=NULL, skill_level=NULL, player_name=NULL, onboarding_complete=0 WHERE id=1').run();
+    db.prepare('UPDATE settings SET distance_unit=\'km\', weekly_goal=3, age_group=NULL, skill_level=NULL, player_name=NULL, onboarding_complete=0, getting_started_complete=0, position=\'General\', equipment=\'["ball","wall"]\' WHERE id=1').run();
     db.prepare('UPDATE personal_records SET data=NULL WHERE id=1').run();
     db.prepare('DELETE FROM training_plans').run();
     db.prepare('DELETE FROM idp_goals').run();
