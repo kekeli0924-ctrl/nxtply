@@ -538,6 +538,51 @@ const migrations = [
     db.exec("ALTER TABLE idp_goals ADD COLUMN target_metric TEXT");
     db.exec("ALTER TABLE idp_goals ADD COLUMN target_value REAL");
   }},
+  { version: 14, up: (db) => {
+    db.exec(`
+      -- Update position_relevance to match app positions: Striker, Winger, CAM, CDM, CB, GK, All
+      -- Shooting drills → Striker, Winger, CAM
+      UPDATE drills SET position_relevance = '["Striker","Winger","CAM"]' WHERE subcategory = 'Shooting';
+      -- Passing drills → CAM, CDM, CB
+      UPDATE drills SET position_relevance = '["CAM","CDM","CB","Striker"]' WHERE subcategory = 'Passing';
+      -- Dribbling drills → Winger, CAM, Striker
+      UPDATE drills SET position_relevance = '["Winger","CAM","Striker"]' WHERE subcategory = 'Dribbling';
+      -- Crossing drills → Winger
+      UPDATE drills SET position_relevance = '["Winger"]' WHERE subcategory = 'Crossing';
+      -- Speed drills → All
+      UPDATE drills SET position_relevance = '["All"]' WHERE subcategory = 'Speed';
+      -- Strength drills → All
+      UPDATE drills SET position_relevance = '["All"]' WHERE subcategory = 'Strength';
+      -- Tactical → CDM, CB, CAM
+      UPDATE drills SET position_relevance = '["CDM","CB","CAM"]' WHERE category = 'Tactical';
+      -- Psychological → All
+      UPDATE drills SET position_relevance = '["All"]' WHERE category = 'Psychological';
+      -- Warm-up → All
+      UPDATE drills SET position_relevance = '["All"]' WHERE category = 'Warm-Up & Cool-Down';
+      -- Specific overrides
+      UPDATE drills SET position_relevance = '["Winger","CAM","Striker"]' WHERE name = 'Rondo';
+      UPDATE drills SET position_relevance = '["CDM","CB","CAM"]' WHERE name = 'Long Passing';
+      UPDATE drills SET position_relevance = '["CDM","CB"]' WHERE name = 'Pressing Triggers';
+      UPDATE drills SET position_relevance = '["Striker","Winger","CAM"]' WHERE name = 'Off-The-Ball Movement';
+      UPDATE drills SET position_relevance = '["CDM","CB"]' WHERE name = 'Transition Sprints';
+      UPDATE drills SET position_relevance = '["Striker","CB"]' WHERE name = 'Free Kicks';
+
+      -- Add 12 new position-specific drills
+      INSERT INTO drills (name, slug, category, subcategory, difficulty, duration_minutes, reps_description, equipment_needed, space_needed, description, coaching_points, variations, position_relevance, is_preset) VALUES
+      ('Penalty Box Movement', 'penalty-box-movement', 'Tactical', 'Movement', 'intermediate', 10, '10 runs, vary starting position', 'Cones (6)', 'medium (10x10m)', 'Practice making runs inside the penalty area. Work on losing your marker, timing runs to meet crosses, and finding space in crowded areas.', '["Start your run late — arrive with the ball, not before","Check away then dart back toward goal","Use the defender body as a shield","Vary between near post, far post, and penalty spot runs"]', '["Add a crosser for live delivery","Defender shadows to add pressure"]', '["Striker"]'),
+      ('Header Practice', 'header-practice', 'Technical', 'Shooting', 'intermediate', 10, '20 headers total', 'Ball, goal', 'medium (10x10m)', 'Develop heading technique for both attacking and defensive situations. Self-toss or use a wall to practice directing headers toward goal corners.', '["Eyes open, mouth closed at contact","Attack the ball — move forward into the header","Use your forehead, not the top of your head","Generate power from your core and neck, not just your head"]', '["Defensive clearance headers for height and distance","Glancing headers to redirect the ball"]', '["Striker","CB"]'),
+      ('Byline Cutback Drill', 'byline-cutback-drill', 'Technical', 'Crossing', 'intermediate', 10, '10 runs each side', 'Ball, cones (4), goal', 'large (half pitch)', 'Sprint to the byline with the ball, cut back sharply, then deliver a low pass across the box or finish at the near post. Practice both sides.', '["Get your head up before the cutback","Use the outside of your foot to cut","Keep the ball moving — don not stop","Aim your cutback to the penalty spot area"]', '["Finish yourself instead of crossing","Add a defender chasing you"]', '["Winger"]'),
+      ('Take-On Speed Drill', 'take-on-speed-drill', 'Technical', 'Dribbling', 'intermediate', 10, '8 runs', 'Ball, cones (6)', 'medium (10x10m)', 'Dribble at pace toward a cone defender, execute a skill move (step-over, feint, or chop), accelerate past, then cross or shoot. Focus on doing moves at match speed.', '["Approach at 80% speed, explode past at 100%","Drop your shoulder to sell the feint","Take a big touch past the cone to create space","Practice your go-to move until it is automatic"]', '["Chain two moves together","Add a real defender for live practice"]', '["Winger"]'),
+      ('Final Third Creativity', 'final-third-creativity', 'Tactical', 'Movement', 'advanced', 12, '10 min continuous', 'Ball, cones (8), wall', 'medium (10x10m)', 'Simulate receiving the ball between defensive lines, turning quickly, and creating chances. Combine wall passes with sharp turns, through balls into cone gates, and quick decision-making.', '["Always know where the goal is before receiving","First touch should take you toward goal","Play forward whenever possible","Disguise your intentions — look one way, play another"]', '["Add a time limit per possession","Work in a restricted 15x15m zone"]', '["CAM"]'),
+      ('One-Two Combinations', 'one-two-combinations', 'Technical', 'Passing', 'intermediate', 10, '3 sets x 10 combos', 'Ball, wall', 'small (3x3m)', 'Practice give-and-go passing with a wall. Pass, move into space, receive the return, then repeat. Work on the timing of the movement and the weight of the pass.', '["Pass and move immediately — never stand still","Angle your run to receive on the move","Use one touch to pass, one touch to control","Accelerate after the return pass"]', '["Add a finish after the combination","Do three-pass combos before finishing"]', '["CAM","Striker"]'),
+      ('Defensive Positioning', 'defensive-positioning', 'Tactical', 'Defending', 'intermediate', 10, '10 scenarios', 'Cones (8)', 'medium (10x10m)', 'Shadow defending without a ball. Set up cone attackers in different formations and practice your positioning — when to step up, when to drop, how to cut passing lanes.', '["Stay goal-side at all times","Watch the ball, not the attacker","Position yourself to see both ball and runner","Close down at an angle to force play wide"]', '["Add a ball being passed between cones","Partner acts as attacker making runs"]', '["CDM","CB"]'),
+      ('Ball Recovery Drill', 'ball-recovery-drill', 'Tactical', 'Defending', 'intermediate', 12, '8 reps', 'Ball, cones (6)', 'medium (10x10m)', 'Practice pressing triggers, winning the ball, and transitioning to attack. Sprint to close down a cone, win an imaginary tackle, then immediately dribble or pass forward.', '["Press with intensity but stay on your feet","Win the ball and look forward immediately","First touch after recovery should be progressive","Recover your position if you do not win it"]', '["Add a real passer to intercept","Chain recovery into a shot on goal"]', '["CDM"]'),
+      ('Long Ball Distribution', 'long-ball-distribution', 'Technical', 'Passing', 'intermediate', 10, '20 passes', 'Ball, cones (4)', 'large (half pitch)', 'Practice accurate long passes from deep positions to targets 30-50 yards away. Work on both driven passes along the ground and lofted balls into space.', '["Lock your ankle and strike through the ball","Follow through toward your target","Vary between driven and lofted passes","Hit targets on both sides of the pitch"]', '["Add a time pressure — 3 seconds to play","Alternate between left and right targets"]', '["CB","GK"]'),
+      ('Aerial Duel Practice', 'aerial-duel-practice', 'Physical', 'Strength', 'intermediate', 10, '15 jumps', 'Ball', 'small (3x3m)', 'Practice jumping and winning aerial battles. Self-toss the ball high, time your jump, and head it with power and direction. Build neck strength and timing.', '["Time your run-up and jump","Use your arms for balance and height","Head the ball at the highest point","Land balanced and ready to react"]', '["Compete against a partner","Head toward specific targets"]', '["CB","Striker"]'),
+      ('Shot Stopping Drill', 'shot-stopping-drill', 'Technical', 'Goalkeeping', 'intermediate', 15, '30 saves', 'Ball, goal', 'medium (10x10m)', 'Face shots from various angles and distances. Start with slow shots to warm up, progress to full-power strikes. Work on positioning, set position, and diving technique.', '["Get into set position before every shot","Stay on your toes, slightly forward","Make yourself big — spread your body","Push wide, not back into the goal"]', '["Add a second shooter for quick reactions","Face shots after dealing with crosses"]', '["GK"]'),
+      ('Distribution Practice', 'distribution-practice', 'Technical', 'Goalkeeping', 'beginner', 10, '20 distributions', 'Ball, cones (4)', 'large (half pitch)', 'Practice goal kicks, overarm throws, and short passing under pressure. Aim for accuracy to specific zones and teammates. Work on building attacks from the back.', '["Goal kicks: strike through the ball with your laces","Throws: step forward and release at the highest point","Short passes: be brave, play out under pressure","Vary your distribution — do not be predictable"]', '["Add cones as pressing attackers","Practice with a teammate making runs"]', '["GK"]');
+    `);
+  }},
 ];
 
 function runMigrations(db) {

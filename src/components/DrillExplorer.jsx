@@ -160,6 +160,7 @@ export function DrillExplorer({ onAddToPlan }) {
 
   const [category, setCategory] = useState('All');
   const [difficulty, setDifficulty] = useState('All');
+  const [position, setPosition] = useState('All');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedDrill, setSelectedDrill] = useState(null);
@@ -193,11 +194,37 @@ export function DrillExplorer({ onAddToPlan }) {
 
   useEffect(() => { fetchDrills(); }, [fetchDrills]);
 
-  const drillCount = drills.length;
+  // Filter by position on client side
+  const POSITIONS = ['All', 'Striker', 'Winger', 'CAM', 'CDM', 'CB', 'GK'];
+
+  const filteredByPosition = useMemo(() => {
+    if (position === 'All') return drills;
+    return drills.filter(d => {
+      const pr = d.positionRelevance || [];
+      return pr.includes(position) || pr.includes('All');
+    });
+  }, [drills, position]);
+
+  const drillCount = filteredByPosition.length;
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <h2 className="text-xl font-bold text-gray-900">Drill Explorer</h2>
+
+      {/* Position tabs */}
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+        {POSITIONS.map(p => (
+          <button
+            key={p}
+            onClick={() => setPosition(p)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              position === p ? 'bg-accent text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
 
       {/* Filter Bar */}
       <Card className="flex flex-wrap items-center gap-3">
@@ -262,7 +289,7 @@ export function DrillExplorer({ onAddToPlan }) {
       {/* Drill Grid */}
       {!loading && !error && drillCount > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {drills.map(drill => (
+          {filteredByPosition.map(drill => (
             <DrillCard
               key={drill.id}
               drill={drill}
