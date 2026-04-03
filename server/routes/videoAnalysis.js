@@ -44,6 +44,9 @@ router.get('/capabilities', (req, res) => {
 
 // POST /api/video/upload
 router.post('/upload', (req, res) => {
+  // Extend timeout for large video files
+  req.setTimeout(600000); // 10 minutes
+  res.setTimeout(600000);
   upload.single('video')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large (max 500MB)', code: 'FILE_TOO_LARGE' });
