@@ -341,8 +341,10 @@ function App() {
     }
   };
 
+  const isOnboarding = sessionsLoaded && sessions.length === 0 && !settings.onboardingComplete;
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-4">
+    <div className={`min-h-screen bg-gray-50 ${isOnboarding ? '' : 'pb-20 md:pb-4'}`}>
       {/* Readiness Check → Adapted Plan → Live Session Mode */}
       {readinessCheckPlan && (
         <ReadinessCheck plan={readinessCheckPlan} onComplete={handleReadinessComplete} onSkip={handleReadinessSkip} />
@@ -354,8 +356,8 @@ function App() {
         <LiveSessionMode plan={livePlan} onComplete={handleLiveComplete} onExit={handleLiveExit} />
       )}
       <OfflineIndicator />
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30" role="banner">
+      {/* Header — hidden during onboarding */}
+      {!isOnboarding && <header className="bg-white border-b border-gray-100 shadow-card sticky top-0 z-30" role="banner">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="w-5" />
           <button onClick={() => setShowSettings(true)} aria-label="Profile" className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm font-bold text-accent">
@@ -376,7 +378,7 @@ function App() {
             </button>
           ))}
         </nav>
-      </header>
+      </header>}
 
       {/* Content */}
       <main className="max-w-3xl mx-auto px-4 py-6">
@@ -446,8 +448,8 @@ function App() {
         )}
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-card z-30" aria-label="Main navigation">
+      {/* Mobile bottom nav — hidden during onboarding */}
+      {!isOnboarding && <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-card z-30" aria-label="Main navigation">
         <div className="flex">
           {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
             <button
@@ -462,7 +464,7 @@ function App() {
             </button>
           ))}
         </div>
-      </nav>
+      </nav>}
 
       {/* Session Detail Modal */}
       <Modal
@@ -649,8 +651,8 @@ function App() {
 
       <Toast message={toast.message} show={toast.show} onHide={hideToast} variant={toast.variant} />
 
-      {/* AI Chat floating button */}
-      {userRole !== 'coach' && (
+      {/* AI Chat floating button — hidden during onboarding */}
+      {userRole !== 'coach' && !isOnboarding && (
         <button
           onClick={() => setShowAIChat(true)}
           className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-13 h-13 btn-warm rounded-full shadow-lg flex items-center justify-center text-xl font-heading font-bold transition-all hover:scale-105 z-20"
