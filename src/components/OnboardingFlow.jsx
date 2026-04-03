@@ -90,18 +90,14 @@ export function OnboardingFlow({ settings, onComplete }) {
               key={opt.role}
               type="button"
               onClick={() => update('role', opt.role)}
-              className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
+              className={`w-full text-center rounded-xl border-2 p-4 transition-all ${
                 data.role === opt.role
                   ? 'border-accent bg-accent/5 shadow-sm'
                   : 'border-gray-100 bg-white hover:border-gray-200'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{opt.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
-                </div>
-              </div>
+              <p className="text-sm font-semibold text-gray-900">{opt.title}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
             </button>
           ))}
         </div>
@@ -325,13 +321,11 @@ export function OnboardingFlow({ settings, onComplete }) {
       {activeSteps[step]()}
 
       {step < TOTAL_STEPS - 1 && (
-        <div className="flex items-center justify-between mt-6">
-          {step > 0 ? (
+        <div className="flex items-center justify-center gap-3 mt-6">
+          {step > 0 && (
             <Button variant="secondary" onClick={() => setStep(s => s - 1)}>
               Back
             </Button>
-          ) : (
-            <div />
           )}
           <Button
             onClick={() => setStep(s => s + 1)}
