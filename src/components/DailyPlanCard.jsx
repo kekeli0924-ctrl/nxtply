@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { generateDailyPlan } from '../utils/dailyPlan';
@@ -156,52 +156,15 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, 
           </div>
         </div>
 
-        {/* Total duration + XP */}
-        <div className="flex items-center gap-4 text-xs text-gray-400">
-          <span className="font-medium text-gray-600">⏱ {plan.totalDuration} min total</span>
+        {/* Duration + XP + drill count summary */}
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          <span className="font-medium text-gray-600">⏱ {plan.totalDuration} min</span>
+          <span>{plan.timeline?.filter(t => !t.isWarmup && !t.isCooldown).length || 0} drills</span>
           {plan.xpReward > 0 && <span>✨ +{plan.xpReward} XP</span>}
         </div>
 
-        {/* Timeline */}
-        {plan.timeline && plan.timeline.length > 0 && (
-          <div className="space-y-0">
-            {plan.timeline.map((item, i) => (
-              <div key={i} className={`flex gap-3 py-2 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
-                {/* Time marker */}
-                <div className="w-10 shrink-0 text-right">
-                  <span className="text-[10px] font-mono text-gray-300">{item.startMin}:00</span>
-                </div>
-
-                {/* Timeline dot + line */}
-                <div className="flex flex-col items-center shrink-0">
-                  <div className={`w-2 h-2 rounded-full mt-1 ${
-                    item.isWarmup ? 'bg-amber-300' :
-                    item.isCooldown ? 'bg-blue-300' :
-                    'bg-accent'
-                  }`} />
-                  {i < plan.timeline.length - 1 && <div className="w-px flex-1 bg-gray-100 mt-1" />}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0 pb-1">
-                  <div className="flex items-center justify-between">
-                    <p className={`text-xs font-semibold ${
-                      item.isWarmup || item.isCooldown ? 'text-gray-400' : 'text-gray-800'
-                    }`}>
-                      {item.name}
-                    </p>
-                    <span className="text-[10px] text-gray-300 shrink-0">{item.duration} min</span>
-                  </div>
-                  <p className="text-[11px] font-medium text-accent mt-0.5">{item.reps}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">{item.instruction}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Motivation */}
-        <p className="text-xs text-gray-500 italic leading-relaxed">{plan.motivation}</p>
+        {/* Expandable Timeline */}
+        <TimelineToggle timeline={plan.timeline} />
 
         {/* CTA */}
         <button
@@ -218,5 +181,61 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, 
         </button>
       </div>
     </Card>
+  );
+}
+
+function TimelineToggle({ timeline }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!timeline || timeline.length === 0) return null;
+
+  const drills = timeline.filter(t => !t.isWarmup && !t.isCooldown);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-xs text-accent hover:text-accent-light transition-colors w-full"
+      >
+        <span className="text-[10px]">{expanded ? '▼' : '▶'}</span>
+        <span className="font-medium">{expanded ? 'Hide details' : 'View full session'}</span>
+        {!expanded && (
+          <span className="text-gray-400 font-normal ml-auto">
+            {drills.map(d => d.name).join(' · ')}
+          </span>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-0" style={{ animation: 'fadeSlideUp 0.2s ease-out' }}>
+          {timeline.map((item, i) => (
+            <div key={i} className={`flex gap-3 py-2 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
+              <div className="w-10 shrink-0 text-right">
+                <span className="text-[10px] font-mono text-gray-300">{item.startMin}:00</span>
+              </div>
+              <div className="flex flex-col items-center shrink-0">
+                <div className={`w-2 h-2 rounded-full mt-1 ${
+                  item.isWarmup ? 'bg-amber-300' :
+                  item.isCooldown ? 'bg-blue-300' :
+                  'bg-accent'
+                }`} />
+                {i < timeline.length - 1 && <div className="w-px flex-1 bg-gray-100 mt-1" />}
+              </div>
+              <div className="flex-1 min-w-0 pb-1">
+                <div className="flex items-center justify-between">
+                  <p className={`text-xs font-semibold ${
+                    item.isWarmup || item.isCooldown ? 'text-gray-400' : 'text-gray-800'
+                  }`}>{item.name}</p>
+                  <span className="text-[10px] text-gray-300 shrink-0">{item.duration} min</span>
+                </div>
+                <p className="text-[11px] font-medium text-accent mt-0.5">{item.reps}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 leading-relaxed">{item.instruction}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
