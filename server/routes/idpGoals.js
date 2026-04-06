@@ -17,11 +17,11 @@ function rowToGoal(row) {
   };
 }
 
-function computeProjection(goal) {
+function computeProjection(goal, userId) {
   if (!goal.targetMetric || !goal.targetValue || !goal.targetDate) return null;
 
   const db = getDb();
-  const sessions = db.prepare('SELECT * FROM sessions ORDER BY date DESC LIMIT 30').all();
+  const sessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY date DESC LIMIT 30').all(userId);
   if (sessions.length < 5) return { status: 'insufficient', message: 'Log 5+ sessions to see your trajectory.' };
 
   // Compute current metric value
@@ -83,7 +83,7 @@ router.get('/', (req, res) => {
   const rows = getDb().prepare('SELECT * FROM idp_goals WHERE user_id = ? ORDER BY created_at').all(req.userId);
   const goals = rows.map(row => {
     const goal = rowToGoal(row);
-    goal.projection = computeProjection(goal);
+    goal.projection = computeProjection(goal, req.userId);
     return goal;
   });
   res.json(goals);
@@ -96,7 +96,7 @@ router.post('/', validate(idpGoalSchema), (req, res) => {
       .run(g.id, g.corner, g.text, g.targetDate || null, g.progress || 0, g.status || 'active', g.targetMetric || null, g.targetValue || null, req.userId);
     const row = getDb().prepare('SELECT * FROM idp_goals WHERE id = ? AND user_id = ?').get(g.id, req.userId);
     const goal = rowToGoal(row);
-    goal.projection = computeProjection(goal);
+    goal.projection = computeProjection(goal, req.userId);
     res.status(201).json(goal);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -111,7 +111,7 @@ router.put('/:id', validate(idpGoalSchema), (req, res) => {
     const row = getDb().prepare('SELECT * FROM idp_goals WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
     if (!row) return res.status(404).json({ error: 'Not found' });
     const goal = rowToGoal(row);
-    goal.projection = computeProjection(goal);
+    goal.projection = computeProjection(goal, req.userId);
     res.json(goal);
   } catch (err) {
     res.status(500).json({ error: err.message });

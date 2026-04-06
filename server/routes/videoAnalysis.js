@@ -38,8 +38,8 @@ const router = Router();
 router.get('/list', (req, res) => {
   const db = getDb();
   const rows = db.prepare(
-    "SELECT id, original_name, clip_timestamp, analysis_result, completed_at FROM video_analyses WHERE status = 'complete' ORDER BY completed_at DESC LIMIT 20"
-  ).all();
+    "SELECT id, original_name, clip_timestamp, analysis_result, completed_at FROM video_analyses WHERE status = 'complete' AND user_id = ? ORDER BY completed_at DESC LIMIT 20"
+  ).all(req.userId);
 
   const items = rows.map(row => {
     let totalKicks = 0;

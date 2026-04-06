@@ -170,7 +170,7 @@ router.post('/connect', requireParent, (req, res) => {
   db.prepare("UPDATE invite_codes SET used_by = ?, used_at = datetime('now') WHERE code = ?").run(req.userId, code);
 
   // Get child's name
-  const settings = db.prepare('SELECT player_name FROM settings WHERE id = 1').get();
+  const settings = db.prepare('SELECT player_name FROM settings WHERE user_id = ?').get(playerId);
   const player = db.prepare('SELECT username FROM users WHERE id = ?').get(playerId);
 
   res.json({

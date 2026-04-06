@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useApiCollection, useApiSingleton, useApiStringList, getToken, clearTokens } from './hooks/useApi';
-import { AuthScreen } from './components/AuthScreen';
+import { AuthScreen, SignupForm } from './components/AuthScreen';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionHistory } from './components/SessionHistory';
@@ -43,14 +43,17 @@ const PLAYER_TABS = [
 
 function App() {
   // ── Auth state ──────────────────────────────
-  const [authUser, setAuthUser] = useState(null); // { userId, username, role }
+  const [authUser, setAuthUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [authFlow, setAuthFlow] = useState('check'); // 'check' | 'login' | 'onboarding' | 'signup' | 'done'
+  const [onboardingData, setOnboardingData] = useState(null); // Data collected during onboarding (role, name, etc.)
 
   // Check for existing token on mount
   useEffect(() => {
     const token = getToken();
     if (!token) {
       setAuthChecked(true);
+      setAuthFlow('login');
       return;
     }
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
@@ -58,35 +61,30 @@ function App() {
       .then(user => {
         if (user) {
           setAuthUser(user);
-          setUserRole(user.role || 'player');
+          setAuthFlow('done');
         } else {
           clearTokens();
+          setAuthFlow('login');
         }
         setAuthChecked(true);
       })
-      .catch(() => { clearTokens(); setAuthChecked(true); });
+      .catch(() => { clearTokens(); setAuthChecked(true); setAuthFlow('login'); });
   }, []);
 
   // Listen for auth failures from useApi (expired tokens)
   useEffect(() => {
-    const handler = () => { setAuthUser(null); clearTokens(); };
+    const handler = () => { setAuthUser(null); clearTokens(); setAuthFlow('login'); };
     window.addEventListener('auth-failure', handler);
     return () => window.removeEventListener('auth-failure', handler);
-  }, []);
-
-  const handleAuthSuccess = useCallback((user) => {
-    setAuthUser(user);
-    setUserRole(user.role || 'player');
   }, []);
 
   const handleLogout = useCallback(() => {
     clearTokens();
     setAuthUser(null);
-    setUserRole(null);
-    window.location.reload();
+    setAuthFlow('login');
   }, []);
 
-  // Show auth screen if not authenticated
+  // Loading check
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -98,11 +96,77 @@ function App() {
     );
   }
 
-  if (!authUser) {
-    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  // Step 1: Login screen (existing users) with "I'm a New User" button
+  if (authFlow === 'login') {
+    return (
+      <AuthScreen
+        onAuthSuccess={(user) => { setAuthUser(user); setAuthFlow('done'); }}
+        onNewUser={() => setAuthFlow('onboarding')}
+      />
+    );
   }
 
-  return <AppMain authUser={authUser} onLogout={handleLogout} />;
+  // Step 2: Onboarding flow (new users — BEFORE signup)
+  if (authFlow === 'onboarding') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <OnboardingFlow
+          settings={{ distanceUnit: 'km' }}
+          onComplete={(data) => {
+            setOnboardingData(data);
+            setAuthFlow('signup');
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Step 3: Signup form (after onboarding, creates the account)
+  if (authFlow === 'signup') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <SignupForm
+          onSignupSuccess={async (user) => {
+            setAuthUser(user);
+            // Save onboarding data to settings now that we have a real account
+            if (onboardingData) {
+              const token = getToken();
+              const { role, ...settingsData } = onboardingData;
+              // Update role
+              if (role && token) {
+                try {
+                  await fetch('/api/auth/role', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ role }),
+                  });
+                } catch { /* ignore */ }
+              }
+              // Save settings
+              if (token) {
+                try {
+                  await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(settingsData),
+                  });
+                } catch { /* ignore */ }
+              }
+            }
+            setAuthFlow('done');
+          }}
+          onBack={() => setAuthFlow('onboarding')}
+        />
+      </div>
+    );
+  }
+
+  // Step 4: Main app (authenticated)
+  if (authFlow === 'done' && authUser) {
+    return <AppMain authUser={authUser} onLogout={handleLogout} />;
+  }
+
+  return null;
 }
 
 function AppMain({ authUser, onLogout }) {
@@ -582,7 +646,7 @@ function AppMain({ authUser, onLogout }) {
     }
   };
 
-  const isOnboarding = sessionsLoaded && sessions.length === 0 && !settings.onboardingComplete;
+  const isOnboarding = false; // Onboarding now happens before signup in App()
 
   return (
     <div className={`min-h-screen bg-gray-50 ${isOnboarding ? '' : 'pb-20 md:pb-4'}`}>
@@ -625,28 +689,6 @@ function AppMain({ authUser, onLogout }) {
             session={completedSession}
             completionData={completionData}
             onDone={() => { setCompletedSession(null); setCompletedBadge(null); setCompletionData(null); setActiveTab('dashboard'); }}
-          />
-        ) : sessionsLoaded && sessions.length === 0 && !settings.onboardingComplete ? (
-          <OnboardingFlow
-            settings={settings}
-            onComplete={async (data) => {
-              const { role, ...settingsData } = data;
-              const newRole = role || 'player';
-              setUserRole(newRole);
-              setSettings(prev => ({ ...prev, ...settingsData }));
-              setActiveTab(newRole === 'coach' ? 'roster' : newRole === 'parent' ? 'parent-dashboard' : 'dashboard');
-              // Update role in backend auth
-              try {
-                const token = getToken();
-                if (token) {
-                  await fetch('/api/auth/role', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ role: newRole }),
-                  });
-                }
-              } catch { /* ignore role update failure */ }
-            }}
           />
         ) : isParent ? (
           activeTab === 'profile' ? (

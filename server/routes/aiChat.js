@@ -10,8 +10,8 @@ const SYSTEM_PROMPT = `You are Composed, a personal soccer training analyst. You
 function gatherPlayerContext(userId) {
   const db = getDb();
 
-  // Last 10 sessions
-  const sessions = db.prepare('SELECT * FROM sessions ORDER BY date DESC LIMIT 10').all().map(s => ({
+  // Last 10 sessions for this user
+  const sessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY date DESC LIMIT 10').all(userId).map(s => ({
     date: s.date,
     duration: s.duration,
     drills: JSON.parse(s.drills || '[]'),
@@ -23,10 +23,10 @@ function gatherPlayerContext(userId) {
   }));
 
   // Settings
-  const settings = db.prepare('SELECT * FROM settings WHERE id = 1').get();
+  const settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
 
   // IDP goals
-  const goals = db.prepare("SELECT * FROM idp_goals WHERE status = 'active'").all().map(g => ({
+  const goals = db.prepare("SELECT * FROM idp_goals WHERE status = 'active' AND user_id = ?").all(userId).map(g => ({
     corner: g.corner,
     text: g.text,
     progress: g.progress,
@@ -34,7 +34,7 @@ function gatherPlayerContext(userId) {
   }));
 
   // Active program
-  const program = db.prepare("SELECT up.*, p.name as program_name FROM user_programs up JOIN programs p ON p.id = up.program_id WHERE up.status = 'active' LIMIT 1").get();
+  const program = db.prepare("SELECT up.*, p.name as program_name FROM user_programs up JOIN programs p ON p.id = up.program_id WHERE up.status = 'active' AND up.user_id = ? LIMIT 1").get(userId);
 
   // Streak
   let streak = 0;

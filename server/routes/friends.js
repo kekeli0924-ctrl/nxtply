@@ -70,8 +70,13 @@ router.get('/feed', (req, res) => {
 
   if (friends.length === 0) return res.json([]);
 
+  const friendIds = friends.map(f => f.friend_id);
+  const placeholders = friendIds.map(() => '?').join(',');
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const sessions = db.prepare('SELECT * FROM sessions WHERE date >= ? ORDER BY date DESC LIMIT 20').all(weekAgo);
+
+  const sessions = db.prepare(
+    `SELECT s.*, u.username FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.user_id IN (${placeholders}) AND s.date >= ? ORDER BY s.date DESC LIMIT 20`
+  ).all(...friendIds, weekAgo);
 
   const feed = sessions.map(row => {
     const shooting = JSON.parse(row.shooting || 'null');
@@ -84,7 +89,7 @@ router.get('/feed', (req, res) => {
     if (passing?.attempts > 0) passPct = Math.round((passing.completed / passing.attempts) * 100);
 
     return {
-      username: 'Player',
+      username: row.username || 'Player',
       date: row.date,
       duration: row.duration,
       drills: drills.slice(0, 3),

@@ -26,8 +26,8 @@ router.get('/dashboard', requireCoach, (req, res) => {
   const weekEndStr = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const result = players.map(p => {
-    const sessionsLast7d = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE date >= ?').get(weekAgo)?.c || 0;
-    const lastSession = db.prepare('SELECT date FROM sessions ORDER BY date DESC LIMIT 1').get();
+    const sessionsLast7d = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE date >= ? AND user_id = ?').get(weekAgo, p.id)?.c || 0;
+    const lastSession = db.prepare('SELECT date FROM sessions WHERE user_id = ? ORDER BY date DESC LIMIT 1').get(p.id);
 
     const assignedThisWeek = db.prepare(
       'SELECT COUNT(*) as c FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?'
@@ -38,8 +38,8 @@ router.get('/dashboard', requireCoach, (req, res) => {
     ).all(p.id, weekStartStr, weekEndStr).map(r => r.date);
 
     const completedThisWeek = assignedDates.length > 0
-      ? db.prepare(`SELECT COUNT(DISTINCT date) as c FROM sessions WHERE date IN (${assignedDates.map(() => '?').join(',')})`)
-          .get(...assignedDates)?.c || 0
+      ? db.prepare(`SELECT COUNT(DISTINCT date) as c FROM sessions WHERE user_id = ? AND date IN (${assignedDates.map(() => '?').join(',')})`)
+          .get(p.id, ...assignedDates)?.c || 0
       : 0;
 
     return {
@@ -68,7 +68,7 @@ router.get('/player/:playerId', requireCoach, (req, res) => {
   const player = db.prepare('SELECT id, username FROM users WHERE id = ?').get(playerId);
   if (!player) return res.status(404).json({ error: 'Player not found', code: 'NOT_FOUND' });
 
-  const sessions = db.prepare('SELECT * FROM sessions ORDER BY date DESC LIMIT 50').all().map(row => ({
+  const sessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY date DESC LIMIT 50').all(playerId).map(row => ({
     id: row.id,
     date: row.date,
     duration: row.duration,
@@ -84,7 +84,7 @@ router.get('/player/:playerId', requireCoach, (req, res) => {
     idpGoals: JSON.parse(row.idp_goals || '[]'),
   }));
 
-  const matches = db.prepare('SELECT * FROM matches ORDER BY date DESC LIMIT 20').all().map(row => ({
+  const matches = db.prepare('SELECT * FROM matches WHERE user_id = ? ORDER BY date DESC LIMIT 20').all(playerId).map(row => ({
     id: row.id,
     date: row.date,
     opponent: row.opponent,
@@ -95,7 +95,7 @@ router.get('/player/:playerId', requireCoach, (req, res) => {
     rating: row.rating,
   }));
 
-  const idpGoals = db.prepare('SELECT * FROM idp_goals ORDER BY created_at DESC').all().map(row => ({
+  const idpGoals = db.prepare('SELECT * FROM idp_goals WHERE user_id = ? ORDER BY created_at DESC').all(playerId).map(row => ({
     id: row.id,
     corner: row.corner,
     text: row.text,
