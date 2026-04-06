@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useApiCollection, useApiSingleton, useApiStringList, getToken, clearTokens } from './hooks/useApi';
 import { AuthScreen, SignupForm } from './components/AuthScreen';
+import { IntroFlow } from './components/IntroFlow';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionHistory } from './components/SessionHistory';
@@ -53,7 +54,8 @@ function App() {
     const token = getToken();
     if (!token) {
       setAuthChecked(true);
-      setAuthFlow('login');
+      const hasSeenIntro = localStorage.getItem('composed_intro_seen');
+      setAuthFlow(hasSeenIntro ? 'login' : 'intro');
       return;
     }
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
@@ -93,6 +95,16 @@ function App() {
           <p className="text-xs text-gray-400 mt-2">Loading...</p>
         </div>
       </div>
+    );
+  }
+
+  // Step 0: Pre-auth intro flow (first-time visitors only)
+  if (authFlow === 'intro') {
+    return (
+      <IntroFlow onComplete={() => {
+        localStorage.setItem('composed_intro_seen', '1');
+        setAuthFlow('login');
+      }} />
     );
   }
 
