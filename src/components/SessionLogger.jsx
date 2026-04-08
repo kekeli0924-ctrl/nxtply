@@ -169,7 +169,7 @@ function sessionToForm(session) {
 
 const DRILL_CATEGORIES = ['Technical', 'Physical', 'Tactical', 'Psychological', 'Warm-Up'];
 
-export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDrill, distanceUnit, templates = [], setTemplates, idpGoals = [], sessions = [] }) {
+export function SessionLogger({ onSave, onQuickSaveVideo, editSession, customDrills, onAddCustomDrill, distanceUnit, templates = [], setTemplates, idpGoals = [], sessions = [] }) {
   const [form, setForm] = useState(emptyForm);
   const [newDrill, setNewDrill] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -179,11 +179,23 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
   const [showShotDetails, setShowShotDetails] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
-  const [inputMode, setInputMode] = useState('manual'); // 'manual' | 'video'
+  const [inputMode, setInputMode] = useState('video'); // 'video' | 'manual' — video is default
   const [aiFields, setAiFields] = useState(new Set()); // track which fields were AI-filled
   const [dbDrills, setDbDrills] = useState([]);
   const [drillSearch, setDrillSearch] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState({});
+
+  // Listen for events to switch to video tab
+  useEffect(() => {
+    const showVideo = () => setInputMode('video');
+    const showManual = () => setInputMode('manual');
+    window.addEventListener('show-video-upload', showVideo);
+    window.addEventListener('show-manual-log', showManual);
+    return () => {
+      window.removeEventListener('show-video-upload', showVideo);
+      window.removeEventListener('show-manual-log', showManual);
+    };
+  }, []);
 
   // Fetch drills from database
   useEffect(() => {
@@ -478,20 +490,20 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
       {/* Input mode toggle */}
       {!isEditing && (
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-          <button type="button" onClick={() => setInputMode('manual')}
-            className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${inputMode === 'manual' ? 'bg-white text-accent shadow-sm' : 'text-gray-500'}`}>
-            Manual Entry
-          </button>
           <button type="button" onClick={() => setInputMode('video')}
             className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${inputMode === 'video' ? 'bg-white text-accent shadow-sm' : 'text-gray-500'}`}>
             Upload Video
+          </button>
+          <button type="button" onClick={() => setInputMode('manual')}
+            className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${inputMode === 'manual' ? 'bg-white text-accent shadow-sm' : 'text-gray-500'}`}>
+            Manual Entry
           </button>
         </div>
       )}
 
       {/* Video upload mode */}
       {inputMode === 'video' && !isEditing && (
-        <VideoUpload onAnalysisComplete={handleVideoAnalysis} />
+        <VideoUpload onAnalysisComplete={handleVideoAnalysis} onQuickSave={onQuickSaveVideo} />
       )}
 
       {/* AI-filled notice */}

@@ -12,7 +12,7 @@ const CONFIDENCE_COLORS = {
 const STAGE_ICONS = { done: '\u2705', active: '\u23f3', pending: '\u2b1c' };
 const SKIP_THRESHOLD = 20 * 1024 * 1024; // 20MB — skip compression for small files
 
-export function VideoUpload({ onAnalysisComplete }) {
+export function VideoUpload({ onAnalysisComplete, onQuickSave }) {
   const [capabilities, setCapabilities] = useState(null);
   const [file, setFile] = useState(null);
   const [processing, setProcessing] = useState(false);
@@ -261,55 +261,59 @@ export function VideoUpload({ onAnalysisComplete }) {
     );
   }
 
-  // ── Results ──────
+  // ── Results — Confirm Card ──────
   if (result) {
+    const shotPct = result.shooting?.shotsTaken > 0
+      ? Math.round((result.shooting.goals / result.shooting.shotsTaken) * 100) : null;
+    const passPct = result.passing?.attempts > 0
+      ? Math.round((result.passing.completed / result.passing.attempts) * 100) : null;
+
     return (
       <Card>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-lg">{STAGE_ICONS.done}</span>
-              <span className="text-sm font-semibold text-gray-900">Analysis Complete</span>
+              <span className="text-sm font-semibold text-gray-900">Session Analyzed</span>
             </div>
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${CONFIDENCE_COLORS[result.overallConfidence] || CONFIDENCE_COLORS.medium}`}>
-              {result.overallConfidence} confidence
+              {result.overallConfidence}
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            {result.shooting && (
-              <div className="bg-gray-50 rounded-lg p-2">
-                <p className="text-xs text-gray-400">Shots</p>
-                <p className="text-sm font-semibold">{result.shooting.goals}/{result.shooting.shotsTaken}</p>
-              </div>
-            )}
-            {result.passing && (
-              <div className="bg-gray-50 rounded-lg p-2">
-                <p className="text-xs text-gray-400">Passes</p>
-                <p className="text-sm font-semibold">{result.passing.completed}/{result.passing.attempts}</p>
-              </div>
-            )}
-            {result.fitness && (
-              <div className="bg-gray-50 rounded-lg p-2">
-                <p className="text-xs text-gray-400">RPE</p>
-                <p className="text-sm font-semibold">{result.fitness.rpe}/10</p>
-              </div>
-            )}
+
+          {/* Quick stats summary */}
+          <div className="flex items-center gap-4 text-sm">
+            {result.duration && <span className="text-gray-600">⏱ {result.duration} min</span>}
+            {shotPct != null && <span className="text-accent font-semibold">🎯 {shotPct}% shots</span>}
+            {passPct != null && <span className="text-accent font-semibold">📊 {passPct}% passes</span>}
           </div>
-          {result.drills?.length > 0 && (
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Detected Drills</p>
-              <div className="flex flex-wrap gap-1">
-                {result.drills.map(d => (
-                  <span key={d} className="bg-accent/10 text-accent text-[10px] px-2 py-0.5 rounded-full">{d}</span>
-                ))}
-              </div>
-            </div>
-          )}
+
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            {result.drills?.length > 0 && <span>{result.drills.length} drills detected</span>}
+            {result.fitness?.rpe && <span>RPE {result.fitness.rpe}/10</span>}
+          </div>
+
           {result.notes && <p className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2">{result.notes}</p>}
-          <div className="flex gap-2">
-            <Button onClick={handleUseResults} className="flex-1">Use These Stats</Button>
-            <Button variant="secondary" onClick={reset}>Start Over</Button>
-          </div>
+
+          {/* Primary: Save directly */}
+          <Button onClick={() => {
+            if (onQuickSave) {
+              onQuickSave(result);
+            } else {
+              handleUseResults();
+            }
+          }} className="w-full py-3">
+            Save Session ✓
+          </Button>
+
+          {/* Secondary: Edit details (full form) */}
+          <button onClick={handleUseResults} className="w-full text-center text-xs text-gray-400 hover:text-accent">
+            Edit details →
+          </button>
+
+          <button onClick={reset} className="w-full text-center text-[10px] text-gray-300 hover:text-gray-500">
+            Start over
+          </button>
         </div>
       </Card>
     );

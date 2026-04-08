@@ -574,18 +574,30 @@ function AppMain({ authUser, onLogout }) {
   }, []);
 
   const handleReadinessSkip = useCallback(() => {
-    // Skip readiness → go to camera setup with original plan
     const plan = readinessCheckPlan;
     setReadinessCheckPlan(null);
     setLivePlan(plan);
-    setShowCameraSetup(true);
+    if (window.__SKIP_CAMERA__) {
+      window.__SKIP_CAMERA__ = false;
+      setShowCameraSetup(false);
+      setRecordingMode(false);
+    } else {
+      setShowCameraSetup(true);
+    }
   }, [readinessCheckPlan]);
 
   const handleAdaptedStart = useCallback(() => {
     const plan = adaptedPlan;
     setAdaptedPlan(null);
     setLivePlan(plan);
-    setShowCameraSetup(true); // Show camera setup before live session (recording is default)
+    // Check if user chose "Start without Recording"
+    if (window.__SKIP_CAMERA__) {
+      window.__SKIP_CAMERA__ = false;
+      setShowCameraSetup(false);
+      setRecordingMode(false);
+    } else {
+      setShowCameraSetup(true);
+    }
   }, [adaptedPlan]);
 
   const handleAdaptedChange = useCallback(() => {
@@ -601,6 +613,33 @@ function AppMain({ authUser, onLogout }) {
       window.dispatchEvent(new CustomEvent('prefill-session', { detail: plan }));
     }, 100);
   }, []);
+
+  const handleUploadVideo = useCallback(() => {
+    setEditSession(null);
+    setActiveTab('log');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('show-video-upload'));
+    }, 100);
+  }, []);
+
+  // Quick save from video analysis (auto-save without full form)
+  const handleQuickSaveFromVideo = useCallback((result) => {
+    const session = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().split('T')[0],
+      duration: result.duration || 0,
+      drills: result.drills || [],
+      notes: result.notes || '',
+      sessionType: result.sessionType || 'Training',
+      position: settings.position || 'General',
+      quickRating: result.quickRating || 3,
+      shooting: result.shooting || null,
+      passing: result.passing || null,
+      fitness: result.fitness || null,
+    };
+    // Save via the existing session save flow
+    handleSaveSession(session);
+  }, [handleSaveSession, settings.position]);
 
   // Camera setup handlers
   const handleCameraStart = useCallback((stream, withRecording) => {
@@ -842,10 +881,10 @@ function AppMain({ authUser, onLogout }) {
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} />
+          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} />
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
-          <SessionLogger onSave={handleSaveSession} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
+          <SessionLogger onSave={handleSaveSession} onQuickSaveVideo={handleQuickSaveFromVideo} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
         </div>
         <div className={activeTab === 'history' ? '' : 'hidden'}>
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} onBack={() => setActiveTab(previousTab)} />

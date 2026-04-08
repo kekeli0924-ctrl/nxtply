@@ -100,7 +100,7 @@ function InsightsCard({ insights }) {
   );
 }
 
-export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
+export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
 
   // FOE (Finishing Over Expected) average
@@ -218,7 +218,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         <h1 className="text-3xl text-accent tracking-tight text-center font-logo italic">Composed</h1>
         <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} idpGoals={idpGoals} />
         <GettingStartedChecklist sessions={sessions} idpGoals={idpGoals} myCoach={myCoach} settings={settings} onNavigate={onNavigate} onDismiss={onDismissGettingStarted} />
-        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} position={settings.position || 'General'} />
+        <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} onUploadVideo={onUploadVideo} assignedPlans={assignedPlans} activeProgram={activeProgram} position={settings.position || 'General'} />
       </div>
     );
   }
