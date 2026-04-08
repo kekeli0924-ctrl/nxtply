@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StatCard } from './ui/Card';
 import { Button } from './ui/Button';
+import { MetricRow, MetricSection } from './MetricRow';
 import { ShotPercentChart, PassPercentChart, DurationChart, RPEChart, FOETrendChart, ShotPortfolioChart } from './Charts';
 import { FourPillarChart } from './FourPillarChart';
 import { WeeklyReport } from './WeeklyReport';
@@ -100,7 +101,7 @@ function InsightsCard({ insights }) {
   );
 }
 
-export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
+export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, onViewMetric, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
 
   // FOE (Finishing Over Expected) average
@@ -355,207 +356,142 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         )}
       </div>
 
-      {/* Progress Charts */}
-      <ProgressCharts sessions={sessions} />
+      {/* ── WHOOP-Style Compact Metrics ── */}
+      {sessions.length > 0 && (
+        <>
+          {/* Your Numbers */}
+          <MetricSection title="Your Numbers">
+            <MetricRow icon="📊" label="Total Sessions" value={totalSessions} onClick={() => onViewMetric?.('total-sessions')} />
+            <MetricRow icon="🔥" label="Streak" value={`${streak} day${streak !== 1 ? 's' : ''}`} onClick={() => onViewMetric?.('streak')} />
+            <MetricRow
+              icon="🎯" label="Weekly Goal"
+              value={`${getCurrentWeekSessionCount(sessions)}/${weeklyGoal}`}
+              sub={getCurrentWeekSessionCount(sessions) >= weeklyGoal ? 'Goal reached!' : `${weeklyGoal - getCurrentWeekSessionCount(sessions)} to go`}
+              onClick={() => onViewMetric?.('weekly-goal')}
+            />
+            {(() => {
+              const ts = computeTrainingScore(sessions, weeklyGoal);
+              return ts ? (
+                <MetricRow icon="💎" label="Training Score" value={`${ts.score}/100`} onClick={() => onViewMetric?.('training-score')} />
+              ) : null;
+            })()}
+          </MetricSection>
 
-      {/* Streak + XP */}
+          {/* Performance */}
+          <MetricSection title="Performance">
+            <MetricRow
+              icon="🎯" label="Shot Accuracy"
+              value={avgShot !== null ? `${avgShot}%` : '\u2014'}
+              sub="Last 7 sessions"
+              trend={avgShot !== null && sessions.length >= 2 ? (() => {
+                const prev = getAverageStat(sessions.slice(0, -1), getShotPercentage, 7);
+                if (prev === null || avgShot === null) return undefined;
+                const diff = avgShot - prev;
+                return diff !== 0 ? `${Math.abs(diff)}%` : undefined;
+              })() : undefined}
+              trendUp={avgShot !== null && sessions.length >= 2 ? (() => {
+                const prev = getAverageStat(sessions.slice(0, -1), getShotPercentage, 7);
+                return prev !== null && avgShot !== null ? avgShot > prev : undefined;
+              })() : undefined}
+              onClick={() => onViewMetric?.('shot-accuracy')}
+            />
+            <MetricRow
+              icon="📊" label="Pass Accuracy"
+              value={avgPass !== null ? `${avgPass}%` : '\u2014'}
+              sub="Last 7 sessions"
+              onClick={() => onViewMetric?.('pass-accuracy')}
+            />
+            <MetricRow
+              icon="⏱" label="Avg Duration"
+              value={sessions.length > 0 ? `${Math.round(sessions.reduce((s, x) => s + (x.duration || 0), 0) / sessions.length)} min` : '\u2014'}
+              onClick={() => onViewMetric?.('duration')}
+            />
+            {sessions.some(s => s.fitness?.rpe) && (
+              <MetricRow
+                icon="💪" label="RPE"
+                value={(() => {
+                  const rpeSessions = sessions.filter(s => s.fitness?.rpe);
+                  if (rpeSessions.length === 0) return '\u2014';
+                  return `${(rpeSessions.reduce((s, x) => s + x.fitness.rpe, 0) / rpeSessions.length).toFixed(1)}/10`;
+                })()}
+                onClick={() => onViewMetric?.('rpe')}
+              />
+            )}
+          </MetricSection>
+
+          {/* Development */}
+          <MetricSection title="Development">
+            <MetricRow
+              icon="🦶" label="Weak Foot"
+              value={(() => {
+                let l = 0, lG = 0, r = 0, rG = 0;
+                sessions.forEach(s => {
+                  if (s.shooting?.leftFoot) { l += s.shooting.leftFoot.shots || 0; lG += s.shooting.leftFoot.goals || 0; }
+                  if (s.shooting?.rightFoot) { r += s.shooting.rightFoot.shots || 0; rG += s.shooting.rightFoot.goals || 0; }
+                });
+                if (l === 0 && r === 0) return '\u2014';
+                const lPct = l > 0 ? Math.round((lG / l) * 100) : 0;
+                const rPct = r > 0 ? Math.round((rG / r) * 100) : 0;
+                return `L:${lPct}% R:${rPct}%`;
+              })()}
+              onClick={() => onViewMetric?.('weak-foot')}
+            />
+            <MetricRow
+              icon="🏆" label="Personal Records"
+              value={personalRecords ? Object.values(personalRecords).filter(v => v?.value != null).length : 0}
+              sub="All-time bests"
+              onClick={() => onViewMetric?.('personal-records')}
+            />
+            {idpGoals.filter(g => g.status === 'active').length > 0 && (
+              <MetricRow
+                icon="📋" label="IDP Goals"
+                value={`${idpGoals.filter(g => g.status === 'active').length} active`}
+                onClick={() => onNavigate?.('profile')}
+              />
+            )}
+          </MetricSection>
+
+          {/* Load & Recovery */}
+          {sessions.length >= 2 && (
+            <MetricSection title="Load & Recovery">
+              <MetricRow
+                icon="📈" label="Weekly Load"
+                value={weeklyLoad.thisWeek?.totalLoad || 0}
+                trend={weeklyLoad.pctChange !== null ? `${Math.abs(weeklyLoad.pctChange)}%` : undefined}
+                trendUp={weeklyLoad.pctChange > 0}
+                onClick={() => onViewMetric?.('weekly-load')}
+              />
+              <MetricRow
+                icon="😴" label="Fatigue"
+                value={(() => {
+                  const decay = computeFatigueDecay(sessions);
+                  if (decay === null) return '\u2014';
+                  return decay > 70 ? 'High' : decay > 40 ? 'Moderate' : 'Low';
+                })()}
+                onClick={() => onViewMetric?.('fatigue')}
+              />
+              {sessions.some(s => s.reflection?.confidence != null) && (
+                <MetricRow
+                  icon="🧠" label="Mental"
+                  value={(() => {
+                    const mental = sessions.filter(s => s.reflection?.confidence != null);
+                    if (mental.length === 0) return '\u2014';
+                    return `${(mental.reduce((s, x) => s + (x.reflection?.confidence || 0), 0) / mental.length).toFixed(1)}/5`;
+                  })()}
+                  sub="Avg confidence"
+                  onClick={() => onViewMetric?.('mental')}
+                />
+              )}
+            </MetricSection>
+          )}
+
+          {/* Insights */}
+          {insights.length > 0 && <InsightsCard insights={insights} />}
+        </>
+      )}
 
       {/* Social Feed */}
       <SocialFeed />
-
-      {/* Video Progress Timeline */}
-      <ProgressTimeline />
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Total Sessions" value={totalSessions} />
-        <StatCard label="Avg Shot %" value={avgShot !== null ? `${avgShot}%` : '\u2014'} sub="Last 7 sessions" />
-        <StatCard label="Avg Pass %" value={avgPass !== null ? `${avgPass}%` : '\u2014'} sub="Last 7 sessions" />
-      </div>
-
-      {/* Peer Comparison */}
-      <ComparisonCard sessions={sessions} ageGroup={ageGroup} skillLevel={skillLevel} onOpenSettings={onOpenSettings} />
-
-      {/* Weekly Load Gauge */}
-      {sessions.length >= 2 && (
-        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700">Weekly Load</h3>
-            {weeklyLoad.pctChange !== null && (
-              <span className={`text-xs font-medium ${weeklyLoad.pctChange > 0 ? 'text-green-600' : weeklyLoad.pctChange < 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-                {weeklyLoad.pctChange > 0 ? '+' : ''}{weeklyLoad.pctChange}% vs last week
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span>Sessions: {weeklyLoad.currentCount} / {weeklyGoal}</span>
-                <span>Load: {weeklyLoad.thisWeek.totalLoad}</span>
-              </div>
-              <div className="h-2.5 rounded-full bg-gray-100">
-                <div
-                  className={`h-2.5 rounded-full transition-all ${
-                    weeklyLoad.currentCount >= weeklyGoal ? 'bg-green-500' :
-                    weeklyLoad.currentCount >= weeklyGoal * 0.5 ? 'bg-accent' : 'bg-amber-400'
-                  }`}
-                  style={{ width: `${Math.min((weeklyLoad.currentCount / Math.max(weeklyGoal, 1)) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            {weeklyLoad.currentCount >= weeklyGoal
-              ? 'Goal reached! Consider a recovery day.'
-              : weeklyLoad.currentCount >= weeklyGoal - 1
-                ? 'Almost there — one more session to hit your goal.'
-                : `${weeklyGoal - weeklyLoad.currentCount} sessions to go this week.`}
-          </p>
-        </div>
-      )}
-
-      {/* Quick Compare */}
-      {quickCompare && (
-        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Last Session vs Average</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {quickCompare.metrics.map(m => {
-              const diff = m.last - m.avg;
-              const pct = m.avg ? Math.abs(Math.round((diff / m.avg) * 100)) : 0;
-              const trend = pct <= 5 ? 'neutral' : diff > 0 ? 'up' : 'down';
-              const arrow = trend === 'up' ? '\u2197' : trend === 'down' ? '\u2198' : '\u2192';
-              const color = trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-500' : 'text-gray-400';
-              return (
-                <div key={m.label} className="text-center">
-                  <p className="text-[10px] text-gray-400">{m.label}</p>
-                  <p className="text-lg font-bold text-accent">{m.last}{m.unit}</p>
-                  <p className={`text-xs ${color}`}>
-                    {arrow} avg {m.avg}{m.unit}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* IDP Activity */}
-      {idpGoals.filter(g => g.status === 'active').length > 0 && (
-        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">IDP Activity</p>
-              <p className="text-sm text-gray-700 mt-1">
-                <span className="font-bold text-accent">{idpActivity.count}</span> of {idpActivity.total} session{idpActivity.total !== 1 ? 's' : ''} this week linked to IDP goals
-              </p>
-            </div>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${idpActivity.count > 0 ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {idpActivity.count > 0 ? '\u2713' : '\u2014'}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Attacking Intelligence */}
-      {(avgFOE !== null || deliveryAcc !== null || avgEndProduct !== null) && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {avgFOE !== null && <StatCard label="Avg FOE" value={avgFOE > 0 ? `+${avgFOE}` : avgFOE} sub="Finishing Over Expected" />}
-          {deliveryAcc !== null && <StatCard label="Delivery Accuracy" value={`${deliveryAcc}%`} sub="Cross/cutback quality" />}
-          {avgEndProduct !== null && <StatCard label="End Product Rate" value={`${avgEndProduct}%`} sub="After beating defender" />}
-        </div>
-      )}
-
-      {/* Load Spike Alert */}
-      {loadSpike && (
-        <div className={`rounded-lg px-4 py-3 border text-sm ${loadSpike.level === 'high' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-          <p className="font-medium">Load Spike Detected</p>
-          <p className="text-xs mt-0.5 opacity-75">{loadSpike.msg}</p>
-        </div>
-      )}
-
-      {/* Coaching Focus Card */}
-      {coachingFocus && (
-        <div className="bg-surface rounded-xl border border-accent/20 shadow-card p-4">
-          <p className="text-xs font-medium text-accent uppercase tracking-wide">This Week's Focus</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{coachingFocus.focus}</p>
-          <p className="text-xs text-gray-500 mt-1">{coachingFocus.msg}</p>
-        </div>
-      )}
-
-      {/* Four-Pillar Development Radar */}
-      <FourPillarChart sessions={sessions} />
-
-      {/* AI Insights - Coach's Notes */}
-      {insights.length > 0 && <InsightsCard insights={insights} />}
-
-      {/* Gap-Based Session Suggestions */}
-      <GapSuggestionsCard sessions={sessions} onNavigateToLog={onNavigateToLog} />
-
-      {/* Development Gap */}
-      {devGap && (
-        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-4">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Development Gap</p>
-          <div className="flex items-center justify-between mt-2">
-            <div>
-              <p className="text-sm font-semibold text-gray-900 capitalize">{devGap.approach.replace(/-/g, ' ')}</p>
-              <p className="text-xs text-gray-500">{devGap.goals}/{devGap.shots} shots ({devGap.pct}%)</p>
-            </div>
-            <span className="text-lg font-bold text-red-500">{devGap.pct}%</span>
-          </div>
-        </div>
-      )}
-
-
-      {/* Due This Week - IDP Goals */}
-      {(() => {
-        const dueGoals = idpGoals.filter(g => g.status === 'active' && g.targetDate && (() => {
-          const badge = getDeadlineBadge(g.targetDate);
-          return badge && (badge.color === 'red' || badge.color === 'amber');
-        })());
-        if (!dueGoals.length) return null;
-        return (
-          <div className="bg-surface rounded-xl border border-amber-100 shadow-card p-4">
-            <p className="text-xs font-medium text-amber-600 uppercase tracking-wide mb-2">Due This Week</p>
-            <div className="space-y-1.5">
-              {dueGoals.map(g => {
-                const badge = getDeadlineBadge(g.targetDate);
-                return (
-                  <div key={g.id} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700 text-xs truncate flex-1">{g.text}</span>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ml-2 ${badge.color === 'red' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>{badge.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Personal Records */}
-      <PersonalRecords records={personalRecords} />
-
-      {/* Weak Foot Widget */}
-      <WeakFootWidget sessions={sessions} />
-
-      {/* Body Check Insights */}
-      <BodyCheckInsights sessions={sessions} />
-
-      {/* Fatigue Analysis */}
-      <FatigueAnalysis sessions={sessions} />
-
-      {/* Session Load Chart */}
-      <SessionLoadChart sessions={sessions} />
-
-      {/* Mental Trend Chart */}
-      <MentalTrendChart sessions={sessions} />
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ShotPercentChart sessions={sessions} />
-        <PassPercentChart sessions={sessions} />
-        <DurationChart sessions={sessions} />
-        <RPEChart sessions={sessions} />
-      </div>
 
     </div>
   );

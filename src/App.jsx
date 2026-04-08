@@ -3,6 +3,7 @@ import { useApiCollection, useApiSingleton, useApiStringList, getToken, clearTok
 import { AuthScreen, SignupForm } from './components/AuthScreen';
 import { IntroFlow } from './components/IntroFlow';
 import { ScoutingPage } from './features/scouting/ScoutingPage';
+import { MetricTrendView } from './components/MetricTrendView';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionHistory } from './components/SessionHistory';
@@ -622,6 +623,14 @@ function AppMain({ authUser, onLogout }) {
     }, 100);
   }, []);
 
+  // Metric detail view
+  const [selectedMetric, setSelectedMetric] = useState(null);
+  const handleViewMetric = useCallback((metricId) => {
+    setSelectedMetric(metricId);
+    setPreviousTab(activeTab);
+    setActiveTab('metric-detail');
+  }, [activeTab]);
+
   // Quick save from video analysis (auto-save without full form)
   const handleQuickSaveFromVideo = useCallback((result) => {
     const session = {
@@ -881,7 +890,7 @@ function AppMain({ authUser, onLogout }) {
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} />
+          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} onViewMetric={handleViewMetric} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} />
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
           <SessionLogger onSave={handleSaveSession} onQuickSaveVideo={handleQuickSaveFromVideo} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
@@ -909,6 +918,48 @@ function AppMain({ authUser, onLogout }) {
             <ProgramsSection />
           </div>
         </div>
+        {activeTab === 'metric-detail' && selectedMetric && (
+          <div>
+            <MetricTrendView
+              title={({
+                'shot-accuracy': 'Shot Accuracy',
+                'pass-accuracy': 'Pass Accuracy',
+                'duration': 'Session Duration',
+                'rpe': 'RPE (Perceived Exertion)',
+                'weekly-load': 'Weekly Training Load',
+                'streak': 'Training Streak',
+                'total-sessions': 'Total Sessions',
+                'weekly-goal': 'Weekly Goal',
+                'training-score': 'Training Score',
+                'fatigue': 'Fatigue Level',
+                'mental': 'Mental Trend',
+                'weak-foot': 'Weak Foot Analysis',
+                'personal-records': 'Personal Records',
+              })[selectedMetric] || selectedMetric}
+              sessions={sessions}
+              metricFn={({
+                'shot-accuracy': (s) => s.shooting?.shotsTaken > 0 ? Math.round((s.shooting.goals / s.shooting.shotsTaken) * 100) : null,
+                'pass-accuracy': (s) => s.passing?.attempts > 0 ? Math.round((s.passing.completed / s.passing.attempts) * 100) : null,
+                'duration': (s) => s.duration || null,
+                'rpe': (s) => s.fitness?.rpe || null,
+                'weekly-load': (s) => (s.duration || 0) * (s.fitness?.rpe || 5),
+                'training-score': (s) => s.duration ? Math.min(100, Math.round(s.duration * 1.5)) : null,
+                'mental': (s) => s.reflection?.confidence || null,
+                'fatigue': (s) => s.fitness?.rpe || null,
+                'weak-foot': (s) => {
+                  const l = s.shooting?.leftFoot;
+                  const r = s.shooting?.rightFoot;
+                  const weaker = (l?.shots || 0) < (r?.shots || 0) ? l : r;
+                  return weaker?.shots > 0 ? Math.round((weaker.goals / weaker.shots) * 100) : null;
+                },
+              })[selectedMetric]}
+              chartType={selectedMetric === 'duration' || selectedMetric === 'weekly-load' ? 'bar' : 'line'}
+              unit={selectedMetric.includes('accuracy') || selectedMetric === 'weak-foot' ? '%' : selectedMetric === 'duration' ? ' min' : selectedMetric === 'rpe' || selectedMetric === 'mental' || selectedMetric === 'fatigue' ? '/10' : ''}
+              color={selectedMetric === 'shot-accuracy' ? '#1E3A5F' : selectedMetric === 'pass-accuracy' ? '#2563EB' : selectedMetric === 'rpe' || selectedMetric === 'fatigue' ? '#D97706' : '#1E3A5F'}
+              onBack={() => { setSelectedMetric(null); setActiveTab(previousTab || 'dashboard'); }}
+            />
+          </div>
+        )}
         <div className={activeTab === 'scouting' ? '' : 'hidden'}>
           <ScoutingPage onBack={() => setActiveTab(previousTab || 'plan')} />
         </div>
