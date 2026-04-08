@@ -729,7 +729,7 @@ function AppMain({ authUser, onLogout }) {
             {settings.playerName ? settings.playerName[0]?.toUpperCase() : '⚽'}
           </button>
         </div>
-        <nav className={`hidden md:flex max-w-3xl mx-auto px-4 gap-1 ${isParent ? '!hidden' : ''}`} aria-label="Main navigation">
+        <nav className="hidden" aria-label="Main navigation">
           {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
             <button
               key={tab.id}
@@ -1249,22 +1249,43 @@ function AppMain({ authUser, onLogout }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-card z-30 ${isOnboarding || isParent ? 'hidden' : ''}`} aria-label="Main navigation">
-        <div className="flex">
-          {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
+      <div className={`fixed bottom-0 left-0 right-0 z-30 px-3 pb-2 max-w-lg mx-auto ${isOnboarding || isParent ? 'hidden' : ''}`}>
+        <div className="flex items-center gap-2">
+          {/* 4 tabs in a rounded bar */}
+          <nav className="flex-1 bg-white border border-gray-100 shadow-card rounded-2xl" aria-label="Main navigation">
+            <div className="flex">
+              {(userRole === 'coach' ? COACH_TABS : PLAYER_TABS).map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`flex-1 flex flex-col items-center py-2.5 text-[10px] font-medium transition-all relative ${
+                    activeTab === tab.id ? 'text-accent' : 'text-gray-400'
+                  }`}
+                >
+                  {activeTab === tab.id && (
+                    <div className="absolute inset-x-2 top-1 bottom-1 bg-accent/8 rounded-xl" style={{ filter: 'blur(2px)' }} />
+                  )}
+                  <div className="relative z-10 flex flex-col items-center">
+                    <tab.icon active={activeTab === tab.id} />
+                    <span className="mt-0.5">{tab.label}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* AI Chat button — separate, like WHOOP logo */}
+          {userRole !== 'coach' && (
             <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={`flex-1 flex flex-col items-center py-2 text-[10px] font-medium transition-colors ${
-                activeTab === tab.id ? 'text-accent' : 'text-gray-400'
-              }`}
+              onClick={() => setShowAIChat(true)}
+              className="w-14 h-14 btn-warm rounded-2xl shadow-lg flex items-center justify-center shrink-0"
+              aria-label="Ask Composed"
             >
-              <tab.icon active={activeTab === tab.id} />
-              <span className="mt-0.5">{tab.label}</span>
+              <span className="text-lg font-logo text-white">C</span>
             </button>
-          ))}
+          )}
         </div>
-      </nav>
+      </div>
 
       {/* Session Detail Modal */}
       <Modal
@@ -1306,16 +1327,7 @@ function AppMain({ authUser, onLogout }) {
         <LiveSessionMode plan={livePlan} onComplete={handleLiveComplete} onExit={handleLiveExit} withRecording={recordingMode} cameraStream={cameraStream} />
       )}
 
-      {/* AI Chat floating button — hidden during onboarding */}
-      {userRole !== 'coach' && !isOnboarding && (
-        <button
-          onClick={() => setShowAIChat(true)}
-          className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-13 h-13 btn-warm rounded-full shadow-lg flex items-center justify-center text-xl font-heading font-bold transition-all hover:scale-105 z-20"
-          aria-label="Ask Composed"
-        >
-          C
-        </button>
-      )}
+      {/* AI Chat button moved inline with bottom nav tabs */}
       <AskComposed
         open={showAIChat}
         onClose={() => setShowAIChat(false)}
