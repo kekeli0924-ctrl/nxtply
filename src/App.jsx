@@ -27,6 +27,8 @@ import { AskComposed } from './components/AskComposed';
 import { SessionCompleteScreen } from './components/SessionCompleteScreen';
 import { SessionComments } from './components/SessionComments';
 import { ParentDashboard } from './components/ParentDashboard';
+import { DashboardIcon, PlusIcon, ListIcon, SocialIcon, CalendarIcon, TargetIcon, BrainIcon, RosterIcon, SettingsIcon } from './components/NavIcons';
+import { SessionDetail } from './components/SessionDetail';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
 import { Modal, ConfirmModal } from './components/ui/Modal';
@@ -42,7 +44,11 @@ const PLAYER_TABS = [
   { id: 'social', label: 'Community', icon: SocialIcon },
 ];
 
-// COACH_TABS defined after icon functions below
+const COACH_TABS = [
+  { id: 'roster', label: 'Roster', icon: RosterIcon },
+  { id: 'assign', label: 'Assign', icon: CalendarIcon },
+  { id: 'overview', label: 'Overview', icon: DashboardIcon },
+];
 
 function App() {
   // ── Auth state ──────────────────────────────
@@ -722,11 +728,10 @@ function AppMain({ authUser, onLogout }) {
       )}
       <OfflineIndicator />
       {/* Header */}
-      <header className={`bg-white border-b border-gray-100 shadow-card sticky top-0 z-30 ${isOnboarding ? 'hidden' : ''}`} role="banner">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="w-5" />
-          <button onClick={() => navigateToTab('profile')} aria-label="Profile" className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm font-bold text-accent">
-            {settings.playerName ? settings.playerName[0]?.toUpperCase() : '⚽'}
+      <header className={`sticky top-0 z-30 ${isOnboarding ? 'hidden' : ''}`} role="banner">
+        <div className="max-w-3xl mx-auto px-4 py-2 flex items-center justify-start">
+          <button onClick={() => navigateToTab('profile')} aria-label="Profile" className="w-9 h-9 rounded-full bg-gray-200/60 flex items-center justify-center text-sm font-bold text-accent">
+            {(settings.playerName || authUser?.username || 'U')[0].toUpperCase()}
           </button>
         </div>
         <nav className="hidden" aria-label="Main navigation">
@@ -770,7 +775,7 @@ function AppMain({ authUser, onLogout }) {
               {/* Parent Profile Header */}
               <div className="text-center">
                 <div className="w-20 h-20 rounded-full bg-accent/10 mx-auto flex items-center justify-center text-3xl">
-                  {settings.playerName ? settings.playerName[0]?.toUpperCase() : '👤'}
+                  {(settings.playerName || authUser?.username || 'U')[0].toUpperCase()}
                 </div>
                 <h2 className="text-lg font-bold text-gray-900 mt-3">{settings.playerName || 'Parent'}</h2>
                 <p className="text-xs text-gray-400">Parent Account</p>
@@ -989,7 +994,7 @@ function AppMain({ authUser, onLogout }) {
             {/* Profile Header */}
             <div className="text-center">
               <div className="w-20 h-20 rounded-full bg-accent/10 mx-auto flex items-center justify-center text-3xl">
-                {settings.playerName ? settings.playerName[0]?.toUpperCase() : '⚽'}
+                {(settings.playerName || authUser?.username || 'U')[0].toUpperCase()}
               </div>
               <h2 className="text-lg font-bold text-gray-900 mt-3">{settings.playerName || 'Player'}</h2>
               <p className="text-xs text-gray-400">
@@ -1335,181 +1340,6 @@ function AppMain({ authUser, onLogout }) {
         hasProgram={!!activeProgram}
       />
     </div>
-  );
-}
-
-function SessionDetail({ session }) {
-  return (
-    <div className="space-y-3 text-sm">
-      <div className="flex justify-between">
-        <span className="text-gray-500">Duration</span>
-        <span className="font-medium">{session.duration} min</span>
-      </div>
-      <div>
-        <span className="text-gray-500">Drills</span>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {session.drills.map(d => (
-            <span key={d} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{d}</span>
-          ))}
-        </div>
-      </div>
-      {session.shooting && (
-        <div className="space-y-1">
-          <span className="text-gray-500 font-medium">Shooting</span>
-          <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 rounded-lg p-2">
-            <div><p className="text-xs text-gray-400">Shots</p><p className="font-semibold">{session.shooting.shotsTaken}</p></div>
-            <div><p className="text-xs text-gray-400">Goals</p><p className="font-semibold">{session.shooting.goals}</p></div>
-            <div><p className="text-xs text-gray-400">Shot %</p><p className="font-semibold">{formatPercentage(session.shooting.goals, session.shooting.shotsTaken)}</p></div>
-          </div>
-          {session.shooting.leftFoot && (
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-gray-50 rounded-lg p-2 text-center">
-                <p className="text-gray-400">Left Foot</p>
-                <p className="font-medium">{session.shooting.leftFoot.goals}/{session.shooting.leftFoot.shots} ({formatPercentage(session.shooting.leftFoot.goals, session.shooting.leftFoot.shots)})</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-2 text-center">
-                <p className="text-gray-400">Right Foot</p>
-                <p className="font-medium">{session.shooting.rightFoot.goals}/{session.shooting.rightFoot.shots} ({formatPercentage(session.shooting.rightFoot.goals, session.shooting.rightFoot.shots)})</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      {session.passing && (
-        <div className="space-y-1">
-          <span className="text-gray-500 font-medium">Passing</span>
-          <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 rounded-lg p-2">
-            <div><p className="text-xs text-gray-400">Attempts</p><p className="font-semibold">{session.passing.attempts}</p></div>
-            <div><p className="text-xs text-gray-400">Completed</p><p className="font-semibold">{session.passing.completed}</p></div>
-            <div><p className="text-xs text-gray-400">Completion %</p><p className="font-semibold">{formatPercentage(session.passing.completed, session.passing.attempts)}</p></div>
-          </div>
-          {session.passing.keyPasses > 0 && <p className="text-xs text-gray-400">Key Passes: {session.passing.keyPasses}</p>}
-        </div>
-      )}
-      {session.fitness && (
-        <div className="space-y-1">
-          <span className="text-gray-500 font-medium">Fitness</span>
-          <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 rounded-lg p-2">
-            {session.fitness.sprints > 0 && <div><p className="text-xs text-gray-400">Sprints</p><p className="font-semibold">{session.fitness.sprints}</p></div>}
-            {session.fitness.distance > 0 && <div><p className="text-xs text-gray-400">Distance</p><p className="font-semibold">{session.fitness.distance} {session.fitness.distanceUnit || 'km'}</p></div>}
-            <div><p className="text-xs text-gray-400">RPE</p><p className="font-semibold">{session.fitness.rpe}/10</p></div>
-          </div>
-        </div>
-      )}
-      {session.notes && (
-        <div>
-          <span className="text-gray-500">Notes</span>
-          <p className="mt-1 text-gray-700 bg-gray-50 rounded-lg p-2 text-xs">{session.notes}</p>
-        </div>
-      )}
-      {session.mediaLinks?.length > 0 && (
-        <div>
-          <span className="text-gray-500">Media</span>
-          <div className="mt-1 space-y-1.5">
-            {session.mediaLinks.map((link, i) => (
-              <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 text-xs text-accent hover:underline bg-gray-50 rounded-lg px-3 py-2">
-                <span>{link.type === 'youtube' ? '▶' : link.type === 'drive' ? '📁' : '🔗'}</span>
-                <span className="truncate">{link.label || link.url}</span>
-                <svg className="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-      {session.sessionInsights?.length > 0 && (
-        <div>
-          <span className="text-gray-500 font-medium">Analysis</span>
-          <div className="mt-1 space-y-1.5">
-            {session.sessionInsights.map((insight, i) => (
-              <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-lg px-3 py-2">
-                <span className="text-sm shrink-0">{insight.icon}</span>
-                <p className="text-xs text-gray-600 leading-relaxed">{insight.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Icons
-function DashboardIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  );
-}
-function PlusIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-    </svg>
-  );
-}
-function ListIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  );
-}
-function SocialIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  );
-}
-function CalendarIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <path strokeLinecap="round" d="M16 2v4M8 2v4M3 10h18" />
-    </svg>
-  );
-}
-function TargetIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
-    </svg>
-  );
-}
-function BrainIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2a7 7 0 00-4.6 12.3l.1.1c.4.4.5.9.5 1.4V17a1 1 0 001 1h6a1 1 0 001-1v-1.2c0-.5.2-1 .5-1.4l.1-.1A7 7 0 0012 2z" />
-      <path strokeLinecap="round" d="M9 21h6M10 17v1M14 17v1" />
-    </svg>
-  );
-}
-function RosterIcon({ active }) {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  );
-}
-
-const COACH_TABS = [
-  { id: 'roster', label: 'Roster', icon: RosterIcon },
-  { id: 'assign', label: 'Assign', icon: CalendarIcon },
-  { id: 'overview', label: 'Overview', icon: DashboardIcon },
-];
-
-function SettingsIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
   );
 }
 

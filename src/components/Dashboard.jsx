@@ -1,31 +1,16 @@
 import { useMemo } from 'react';
-import { StatCard } from './ui/Card';
-import { Button } from './ui/Button';
 import { MetricRow, MetricSection } from './MetricRow';
-import { ShotPercentChart, PassPercentChart, DurationChart, RPEChart, FOETrendChart, ShotPortfolioChart } from './Charts';
-import { FourPillarChart } from './FourPillarChart';
 import { WeeklyReport } from './WeeklyReport';
-import { PersonalRecords } from './PersonalRecords';
-import { WeakFootWidget } from './WeakFootWidget';
-import { BodyCheckInsights } from './BodyCheckInsights';
-import { FatigueAnalysis } from './FatigueAnalysis';
-import { GapSuggestionsCard } from './GapSuggestionsCard';
-import { ComparisonCard } from './ComparisonCard';
 import { DailyPlanCard } from './DailyPlanCard';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
-import { ProgressCharts } from './ProgressCharts';
 import { WelcomeBack } from './WelcomeBack';
 import { DateBrowser } from './DateBrowser';
-import { SessionLoadChart } from './SessionLoadChart';
-import { MentalTrendChart } from './MentalTrendChart';
 import { SocialFeed } from './SocialFeed';
-import { ProgressTimeline } from './ProgressTimeline';
 import {
   getStreak, getAverageStat, getShotPercentage, getPassPercentage,
-  getMatchStats, formatDate, formatPercentage, computeTrainingScore,
-  getCurrentWeekSessionCount, getDeadlineBadge, getDeliveryAccuracy,
-  getTakeOnEndProductRate, getWeakestApproach, getWeeklyLoads,
-  computeFatigueDecay, diagnoseFatigue, generateInsights, PR_LABELS,
+  formatDate, formatPercentage, computeTrainingScore,
+  getCurrentWeekSessionCount, getWeeklyLoads,
+  computeFatigueDecay, generateInsights,
 } from '../utils/stats';
 
 const BREAKDOWN_LABELS = {
@@ -104,59 +89,7 @@ function InsightsCard({ insights }) {
 export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, onViewMetric, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
 
-  // FOE (Finishing Over Expected) average
-  const avgFOE = useMemo(() => {
-    const xgSessions = sessions.filter(s => s.shooting?.xG != null);
-    if (!xgSessions.length) return null;
-    const recent = [...xgSessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7);
-    const foes = recent.map(s => s.shooting.goals - s.shooting.xG);
-    return Math.round(foes.reduce((a, b) => a + b, 0) / foes.length * 100) / 100;
-  }, [sessions]);
-
-  // Delivery accuracy average
-  const deliveryAcc = useMemo(() => {
-    const acc = getDeliveryAccuracy(sessions);
-    if (!acc.length) return null;
-    return Math.round(acc.reduce((sum, d) => sum + d.accuracy, 0) / acc.length);
-  }, [sessions]);
-
-  // Take-on end product rate
-  const avgEndProduct = useMemo(() => {
-    const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
-    const rates = sorted.slice(0, 7).map(s => getTakeOnEndProductRate(s)).filter(v => v !== null);
-    if (!rates.length) return null;
-    return Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
-  }, [sessions]);
-
-  // Load spike detection
-  const loadSpike = useMemo(() => {
-    const weeks = getWeeklyLoads(sessions, 4);
-    if (weeks.length < 2) return null;
-    const current = weeks[weeks.length - 1].totalLoad;
-    const prev = weeks.slice(0, -1).filter(w => w.totalLoad > 0);
-    if (!prev.length || current === 0) return null;
-    const avgPrev = prev.reduce((s, w) => s + w.totalLoad, 0) / prev.length;
-    const ratio = current / avgPrev;
-    if (ratio > 1.5) return { level: 'high', msg: `This week's training load is ${Math.round((ratio - 1) * 100)}% above your average. Consider a recovery day.` };
-    if (ratio > 1.3) return { level: 'moderate', msg: `Training load is ${Math.round((ratio - 1) * 100)}% above average. Monitor how you feel.` };
-    return null;
-  }, [sessions]);
-
-  // Coaching focus (weakest area)
-  const coachingFocus = useMemo(() => {
-    if (sessions.length < 5) return null;
-    const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
-    const avgShot5 = getAverageStat(sorted.slice(0, 5), getShotPercentage);
-    const avgPass5 = getAverageStat(sorted.slice(0, 5), getPassPercentage);
-    if (avgShot5 !== null && avgPass5 !== null) {
-      if (avgShot5 < avgPass5 - 10) return { focus: 'Finishing', msg: 'Your passing is ahead of your shooting. Add more targeted finishing drills.' };
-      if (avgPass5 < avgShot5 - 10) return { focus: 'Distribution', msg: 'Your shooting is ahead of your passing. Work on passing accuracy and weight of pass.' };
-    }
-    return null;
-  }, [sessions]);
-
-  // Development gap (weakest shooting approach)
-  const devGap = useMemo(() => getWeakestApproach(sessions), [sessions]);
+  // (Removed: avgFOE, deliveryAcc, avgEndProduct, loadSpike, coachingFocus, devGap — accessible via MetricTrendView)
 
   // Weekly Load Gauge
   const weeklyLoad = useMemo(() => {
@@ -168,49 +101,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
     return { thisWeek, lastWeek, currentCount, pctChange };
   }, [sessions]);
 
-  // Quick Compare: last session vs 5-session average
-  const quickCompare = useMemo(() => {
-    if (sessions.length < 2) return null;
-    const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
-    const last = sorted[0];
-    const prev5 = sorted.slice(1, 6);
-    if (!prev5.length) return null;
-    const metrics = [];
-    metrics.push({
-      label: 'Duration',
-      last: last.duration,
-      avg: Math.round(prev5.reduce((s, x) => s + x.duration, 0) / prev5.length),
-      unit: 'min',
-    });
-    metrics.push({
-      label: 'Rating',
-      last: last.quickRating,
-      avg: Math.round(prev5.reduce((s, x) => s + (x.quickRating || 3), 0) / prev5.length * 10) / 10,
-      unit: '/10',
-    });
-    const lastShot = getShotPercentage(last);
-    const avgShot5 = getAverageStat(prev5, getShotPercentage);
-    if (lastShot !== null && avgShot5 !== null) {
-      metrics.push({ label: 'Shot %', last: lastShot, avg: avgShot5, unit: '%' });
-    }
-    const lastPass = getPassPercentage(last);
-    const avgPass5 = getAverageStat(prev5, getPassPercentage);
-    if (lastPass !== null && avgPass5 !== null) {
-      metrics.push({ label: 'Pass %', last: lastPass, avg: avgPass5, unit: '%' });
-    }
-    return { lastDate: last.date, metrics };
-  }, [sessions]);
-
-  // IDP Activity: sessions this week linked to IDP goals
-  const idpActivity = useMemo(() => {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
-    const mondayStr = monday.toISOString().split('T')[0];
-    const linked = sessions.filter(s => s.date >= mondayStr && s.idpGoals?.length > 0);
-    return { count: linked.length, total: getCurrentWeekSessionCount(sessions) };
-  }, [sessions]);
+  // (Removed: quickCompare, idpActivity — moved to MetricTrendView)
 
   // Empty state: show daily plan + prompt
   if (sessions.length === 0) {
@@ -228,7 +119,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
   const streak = getStreak(sessions);
   const avgShot = getAverageStat(sessions, getShotPercentage, 7);
   const avgPass = getAverageStat(sessions, getPassPercentage, 7);
-  const matchStats = getMatchStats([]);
+  // (Removed: matchStats — unused after WHOOP restructure)
 
   const recentSessions = [...sessions]
     .sort((a, b) => b.date.localeCompare(a.date))
