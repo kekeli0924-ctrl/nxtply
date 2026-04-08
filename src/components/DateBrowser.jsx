@@ -90,7 +90,7 @@ export function DateBrowser({ assignedPlans = [], trainingPlans = [], sessions =
 
       {/* Expandable Calendar */}
       {calendarOpen && (
-        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-4" style={{ animation: 'fadeSlideUp 0.2s ease-out' }}>
+        <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-3 max-w-sm mx-auto" style={{ animation: 'fadeSlideUp 0.2s ease-out' }}>
           {/* Month header */}
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="text-gray-400 hover:text-accent p-1">
@@ -130,7 +130,7 @@ export function DateBrowser({ assignedPlans = [], trainingPlans = [], sessions =
                 <button
                   key={dateStr}
                   onClick={() => handleDayClick(day)}
-                  className={`relative w-full aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                  className={`relative w-full h-9 flex items-center justify-center rounded-full text-xs font-medium transition-colors ${
                     isDaySelected
                       ? 'bg-accent text-white'
                       : isDayToday
