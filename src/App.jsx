@@ -4,6 +4,7 @@ import { AuthScreen, SignupForm } from './components/AuthScreen';
 import { IntroFlow } from './components/IntroFlow';
 import { ScoutingPage } from './features/scouting/ScoutingPage';
 import { MetricTrendView } from './components/MetricTrendView';
+import { PaceDetailView } from './components/PaceDetailView';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionHistory } from './components/SessionHistory';
@@ -923,7 +924,14 @@ function AppMain({ authUser, onLogout }) {
             <ProgramsSection />
           </div>
         </div>
-        {activeTab === 'metric-detail' && selectedMetric && (
+        {activeTab === 'metric-detail' && selectedMetric === 'pace' && (
+          <PaceDetailView
+            sessions={sessions}
+            skillLevel={settings.skillLevel}
+            onBack={() => { setSelectedMetric(null); setActiveTab(previousTab || 'dashboard'); }}
+          />
+        )}
+        {activeTab === 'metric-detail' && selectedMetric && selectedMetric !== 'pace' && (
           <div>
             <MetricTrendView
               title={({

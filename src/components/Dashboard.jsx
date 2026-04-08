@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { MetricRow, MetricSection } from './MetricRow';
+import { PaceCard } from './PaceCard';
 import { WeeklyReport } from './WeeklyReport';
+import { computePace } from '../utils/pace';
 import { DailyPlanCard } from './DailyPlanCard';
 import { GettingStartedChecklist } from './GettingStartedChecklist';
 import { WelcomeBack } from './WelcomeBack';
@@ -88,6 +90,7 @@ function InsightsCard({ insights }) {
 
 export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, onViewMetric, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
+  const pace = useMemo(() => computePace(sessions, 4), [sessions]);
 
   // (Removed: avgFOE, deliveryAcc, avgEndProduct, loadSpike, coachingFocus, devGap — accessible via MetricTrendView)
 
@@ -181,6 +184,9 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
 
       {/* Welcome Back (3+ days inactive) */}
       <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
+
+      {/* Your Pace — improvement velocity */}
+      <PaceCard pace={pace} onClick={() => onViewMetric?.('pace')} />
 
       {/* Daily Plan */}
       <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} position={settings.position || 'General'} />
