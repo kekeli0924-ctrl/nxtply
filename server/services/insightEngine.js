@@ -9,7 +9,9 @@ export function generateSessionInsights(sessionId) {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
   if (!session) return [];
 
-  const allSessions = db.prepare('SELECT * FROM sessions ORDER BY date DESC').all();
+  // Scope all queries to this user's data
+  const userId = session.user_id || 1;
+  const allSessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY date DESC').all(userId);
   const insights = [];
 
   const shooting = JSON.parse(session.shooting || 'null');
@@ -89,7 +91,7 @@ export function generateSessionInsights(sessionId) {
   }
 
   // 5. Exceeding weekly goal
-  const settings = db.prepare('SELECT * FROM settings WHERE id = 1').get();
+  const settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
   const weeklyGoal = settings?.weekly_goal || 3;
   const thisWeek = history.filter(s => {
     const d = new Date(s.date);

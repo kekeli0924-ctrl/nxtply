@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { getToken } from '../hooks/useApi';
 
 const CATEGORY_COLORS = {
   Shooting: 'bg-red-50 text-red-600',
@@ -24,25 +25,23 @@ export function ProgramsSection({ onProgramChange }) {
   const [programDetail, setProgramDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const role = window.__COMPOSED_ROLE__ || 'player';
-
   const fetchData = useCallback(async () => {
     try {
       const [progs, active] = await Promise.all([
-        fetch(`/api/programs?_role=${role}`, { headers: { 'X-Dev-Role': role } }).then(r => r.ok ? r.json() : []),
-        fetch(`/api/programs/active?_role=${role}`, { headers: { 'X-Dev-Role': role } }).then(r => r.ok ? r.json() : null).then(d => d?.active || d?.program ? d : null),
+        fetch('/api/programs', { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.ok ? r.json() : []),
+        fetch('/api/programs/active', { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.ok ? r.json() : null).then(d => d?.active || d?.program ? d : null),
       ]);
       setPrograms(progs);
       setActiveProgram(active);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [role]);
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const viewDetail = async (id) => {
     try {
-      const res = await fetch(`/api/programs/${id}?_role=${role}`, { headers: { 'X-Dev-Role': role } });
+      const res = await fetch(`/api/programs/${id}`, { headers: { Authorization: `Bearer ${getToken()}` } });
       if (res.ok) {
         const data = await res.json();
         setProgramDetail(data);
@@ -53,9 +52,9 @@ export function ProgramsSection({ onProgramChange }) {
 
   const enroll = async (id) => {
     try {
-      const res = await fetch(`/api/programs/${id}/enroll?_role=${role}`, {
+      const res = await fetch(`/api/programs/${id}/enroll`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Dev-Role': role },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) {
         setSelectedProgram(null);
@@ -68,9 +67,9 @@ export function ProgramsSection({ onProgramChange }) {
 
   const cancelProgram = async () => {
     try {
-      await fetch(`/api/programs/active?_role=${role}`, {
+      await fetch('/api/programs/active', {
         method: 'DELETE',
-        headers: { 'X-Dev-Role': role },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       fetchData();
       onProgramChange?.();

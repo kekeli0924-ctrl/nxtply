@@ -213,10 +213,7 @@ function AppMain({ authUser, onLogout }) {
   // Role state
   const [userRole, setUserRole] = useState(authUser.role || 'player');
 
-  // Sync role to window for any legacy code that still checks it
-  useEffect(() => {
-    window.__COMPOSED_ROLE__ = userRole || 'player';
-  }, [userRole]);
+  // Role is now read from JWT token — no need for window global
 
   // Fetch assigned plans for players (poll every 30s for coach updates)
   useEffect(() => {
@@ -278,8 +275,7 @@ function AppMain({ authUser, onLogout }) {
 
   const fetchParentChildren = useCallback(() => {
     if (!isParent) return;
-    const role = window.__COMPOSED_ROLE__ || 'parent';
-    fetch(`/api/parent/children?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+    fetch('/api/parent/children', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : [])
       .then(kids => {
         setParentChildren(kids);
@@ -292,8 +288,7 @@ function AppMain({ authUser, onLogout }) {
 
   useEffect(() => {
     if (!isParent || !selectedChildId) return;
-    const role = window.__COMPOSED_ROLE__ || 'parent';
-    fetch(`/api/parent/dashboard/${selectedChildId}?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+    fetch(`/api/parent/dashboard/${selectedChildId}`, { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : null)
       .then(setParentDashboard)
       .catch(() => {});
@@ -302,12 +297,11 @@ function AppMain({ authUser, onLogout }) {
   // Fetch parent access data for player profile
   const fetchParentAccess = useCallback(() => {
     if (isParent || userRole === 'coach') return;
-    const role = window.__COMPOSED_ROLE__ || 'player';
-    fetch(`/api/parent/my-parents?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+    fetch('/api/parent/my-parents', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : [])
       .then(setParentConnectedList)
       .catch(() => {});
-    fetch(`/api/parent/visibility-settings?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+    fetch('/api/parent/visibility-settings', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : { showRatings: true, showCoachFeedback: true, showIdpGoals: true })
       .then(setParentVisibility)
       .catch(() => {});
@@ -659,8 +653,7 @@ function AppMain({ authUser, onLogout }) {
     if (tabId !== 'log') setEditSession(null);
     // Refresh assigned plans when going to dashboard
     if (tabId === 'dashboard' && userRole !== 'coach') {
-      const role = window.__COMPOSED_ROLE__ || 'player';
-      fetch(`/api/assigned-plans?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+      fetch('/api/assigned-plans', { headers: { Authorization: `Bearer ${getToken()}` } })
         .then(r => r.ok ? r.json() : [])
         .then(setAssignedPlans)
         .catch(() => {});
@@ -751,11 +744,10 @@ function AppMain({ authUser, onLogout }) {
                         </div>
                         <button
                           onClick={async () => {
-                            const role = window.__COMPOSED_ROLE__ || 'parent';
                             try {
                               await fetch(`/api/parent/disconnect/${child.linkId}`, {
                                 method: 'DELETE',
-                                headers: { 'X-Dev-Role': role },
+                                headers: { Authorization: `Bearer ${getToken()}` },
                               });
                               fetchParentChildren();
                               showToast('Disconnected');
@@ -1059,11 +1051,10 @@ function AppMain({ authUser, onLogout }) {
                   </div>
                 ) : (
                   <Button variant="secondary" className="w-full" onClick={async () => {
-                    const role = window.__COMPOSED_ROLE__ || 'player';
                     try {
                       const res = await fetch('/api/parent/generate-code', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-Dev-Role': role },
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
                       });
                       const data = await res.json();
                       if (res.ok) setParentAccessCode(data.code);
@@ -1084,8 +1075,7 @@ function AppMain({ authUser, onLogout }) {
                       <span className="text-xs text-gray-700">{p.parentName}</span>
                       <button
                         onClick={async () => {
-                          const role = window.__COMPOSED_ROLE__ || 'player';
-                          await fetch(`/api/parent/revoke/${p.id}`, { method: 'DELETE', headers: { 'X-Dev-Role': role } });
+                          await fetch(`/api/parent/revoke/${p.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } });
                           fetchParentAccess();
                           showToast('Access revoked');
                         }}
@@ -1114,10 +1104,9 @@ function AppMain({ authUser, onLogout }) {
                       onChange={async (e) => {
                         const newVis = { ...parentVisibility, [toggle.key]: e.target.checked };
                         setParentVisibility(newVis);
-                        const role = window.__COMPOSED_ROLE__ || 'player';
                         fetch('/api/parent/visibility-settings', {
                           method: 'PUT',
-                          headers: { 'Content-Type': 'application/json', 'X-Dev-Role': role },
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
                           body: JSON.stringify(newVis),
                         }).catch(() => {});
                       }}

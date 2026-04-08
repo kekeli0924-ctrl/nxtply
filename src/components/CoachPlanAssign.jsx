@@ -3,6 +3,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { PRESET_DRILLS, getWeekDates, formatDateShort } from '../utils/stats';
+import { getToken } from '../hooks/useApi';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -19,7 +20,7 @@ export function CoachPlanAssign() {
 
   // Fetch roster
   useEffect(() => {
-    fetch('/api/roster', { headers: { 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' } })
+    fetch('/api/roster', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : [])
       .then(data => {
         setRoster(data);
@@ -33,7 +34,7 @@ export function CoachPlanAssign() {
     if (!selectedPlayer) return;
     try {
       const res = await fetch(`/api/assigned-plans/player/${selectedPlayer.playerId}`, {
-        headers: { 'X-Dev-Role': 'coach' },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) setPlans(await res.json());
     } catch { /* ignore */ }
@@ -59,7 +60,7 @@ export function CoachPlanAssign() {
     try {
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify(body),
       });
       if (res.ok) {
@@ -73,7 +74,7 @@ export function CoachPlanAssign() {
     try {
       await fetch(`/api/assigned-plans/${id}`, {
         method: 'DELETE',
-        headers: { 'X-Dev-Role': 'coach' },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       fetchPlans();
       setEditingPlan(null);
@@ -204,8 +205,7 @@ function PlanEditForm({ plan, onChange }) {
   const [collapsed, setCollapsed] = useState({});
 
   useEffect(() => {
-    const role = window.__COMPOSED_ROLE__ || 'coach';
-    fetch(`/api/drills?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+    fetch('/api/drills', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : [])
       .then(setDbDrills)
       .catch(() => {});

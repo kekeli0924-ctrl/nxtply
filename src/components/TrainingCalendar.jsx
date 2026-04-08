@@ -3,6 +3,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { PRESET_DRILLS, getWeekDates, formatDateShort } from '../utils/stats';
+import { getToken } from '../hooks/useApi';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -190,8 +191,7 @@ function PlanEditorModal({ plan, allDrills, onSave, onClose }) {
   const [collapsed, setCollapsed] = useState({});
 
   useEffect(() => {
-    const role = window.__COMPOSED_ROLE__ || 'player';
-    fetch(`/api/drills?_role=${role}`, { headers: { 'X-Dev-Role': role } })
+    fetch('/api/drills', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : [])
       .then(setDbDrills)
       .catch(() => {});

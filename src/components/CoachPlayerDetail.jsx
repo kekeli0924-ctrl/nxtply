@@ -3,13 +3,14 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { CoachChat } from './CoachChat';
 import { formatDate, getShotPercentage, getPassPercentage, getStreak } from '../utils/stats';
+import { getToken } from '../hooks/useApi';
 
 export function CoachPlayerDetail({ player, onBack }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/coach/player/${player.playerId}`, { headers: { 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' } })
+    fetch(`/api/coach/player/${player.playerId}`, { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : null)
       .then(setData)
       .finally(() => setLoading(false));

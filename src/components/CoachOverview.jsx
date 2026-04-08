@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card } from './ui/Card';
+import { getToken } from '../hooks/useApi';
 
 export function CoachOverview() {
   const [dashboard, setDashboard] = useState([]);
@@ -7,7 +8,7 @@ export function CoachOverview() {
   const [leaderboardMetric, setLeaderboardMetric] = useState('sessions');
 
   useEffect(() => {
-    fetch('/api/coach/dashboard', { headers: { 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' } })
+    fetch('/api/coach/dashboard', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.ok ? r.json() : [])
       .then(setDashboard)
       .finally(() => setLoading(false));

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { getToken } from '../hooks/useApi';
 
 export function CoachRoster({ onSelectPlayer }) {
   const [roster, setRoster] = useState([]);
@@ -13,14 +14,14 @@ export function CoachRoster({ onSelectPlayer }) {
 
   const fetchRoster = useCallback(async () => {
     try {
-      const res = await fetch('/api/roster', { headers: { 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' } });
+      const res = await fetch('/api/roster', { headers: { Authorization: `Bearer ${getToken()}` } });
       if (res.ok) setRoster(await res.json());
     } catch { /* ignore */ }
   }, []);
 
   const fetchInvites = useCallback(async () => {
     try {
-      const res = await fetch('/api/roster/invites', { headers: { 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' } });
+      const res = await fetch('/api/roster/invites', { headers: { Authorization: `Bearer ${getToken()}` } });
       if (res.ok) setInvites(await res.json());
     } catch { /* ignore */ }
   }, []);
@@ -33,7 +34,7 @@ export function CoachRoster({ onSelectPlayer }) {
     try {
       const res = await fetch('/api/roster/invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Dev-Role': window.__COMPOSED_ROLE__ || 'coach' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -56,7 +57,7 @@ export function CoachRoster({ onSelectPlayer }) {
     try {
       await fetch(`/api/roster/${playerId}`, {
         method: 'DELETE',
-        headers: { 'X-Dev-Role': 'coach' },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       setRoster(prev => prev.filter(p => p.playerId !== playerId));
     } catch { /* ignore */ }

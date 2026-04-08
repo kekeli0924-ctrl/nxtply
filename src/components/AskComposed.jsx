@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
+import { getToken } from '../hooks/useApi';
 
 const SUGGESTED_QUESTIONS = {
   new: [
@@ -38,15 +39,14 @@ export function AskComposed({ open, onClose, sessionCount = 0, hasProgram = fals
     const msg = text || input.trim();
     if (!msg || loading) return;
 
-    const role = window.__COMPOSED_ROLE__ || 'player';
     setMessages(prev => [...prev, { role: 'user', text: msg }]);
     setInput('');
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/ai/chat?_role=${role}`, {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Dev-Role': role },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ message: msg }),
       });
       const data = await res.json();

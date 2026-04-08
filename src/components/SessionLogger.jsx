@@ -187,9 +187,7 @@ export function SessionLogger({ onSave, editSession, customDrills, onAddCustomDr
 
   // Fetch drills from database
   useEffect(() => {
-    const headers = {};
-    if (window.__COMPOSED_ROLE__) headers['X-Dev-Role'] = window.__COMPOSED_ROLE__;
-    fetch('/api/drills', { headers })
+    fetch('/api/drills')
       .then(res => res.ok ? res.json() : [])
       .then(data => setDbDrills(Array.isArray(data) ? data : []))
       .catch(() => setDbDrills([]));

@@ -91,8 +91,8 @@ router.post('/upload', (req, res) => {
     const db = getDb();
     const videoId = crypto.randomUUID();
 
-    db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status)
-      VALUES (?, ?, ?, ?, 'uploaded')`).run(videoId, req.file.path, req.file.originalname, req.file.size);
+    db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status, user_id)
+      VALUES (?, ?, ?, ?, 'uploaded', ?)`).run(videoId, req.file.path, req.file.originalname, req.file.size, req.userId);
 
     logger.info('Video uploaded', { videoId, filename: req.file.originalname, size: req.file.size });
 
@@ -103,7 +103,7 @@ router.post('/upload', (req, res) => {
 // POST /api/video/:videoId/analyze — trigger Gemini analysis
 router.post('/:videoId/analyze', (req, res) => {
   const db = getDb();
-  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ?').get(req.params.videoId);
+  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ? AND user_id = ?').get(req.params.videoId, req.userId);
 
   if (!video) return res.status(404).json({ error: 'Video not found', code: 'NOT_FOUND' });
   if (video.status === 'analyzing') return res.status(409).json({ error: 'Analysis already in progress', code: 'IN_PROGRESS' });
@@ -156,7 +156,7 @@ router.post('/:videoId/analyze', (req, res) => {
 // GET /api/video/:videoId/status
 router.get('/:videoId/status', (req, res) => {
   const db = getDb();
-  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ?').get(req.params.videoId);
+  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ? AND user_id = ?').get(req.params.videoId, req.userId);
   if (!video) return res.status(404).json({ error: 'Video not found', code: 'NOT_FOUND' });
 
   const response = {
@@ -181,7 +181,7 @@ router.get('/:videoId/status', (req, res) => {
 // DELETE /api/video/:videoId
 router.delete('/:videoId', (req, res) => {
   const db = getDb();
-  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ?').get(req.params.videoId);
+  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ? AND user_id = ?').get(req.params.videoId, req.userId);
   if (!video) return res.status(404).json({ error: 'Video not found', code: 'NOT_FOUND' });
 
   if (fs.existsSync(video.video_path)) fs.unlinkSync(video.video_path);
@@ -236,9 +236,9 @@ router.post('/upload-frames', (req, res) => {
     const compressedSize = parseInt(req.body.compressedSize) || 0;
 
     const db = getDb();
-    db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status, frames_extracted)
-      VALUES (?, ?, ?, ?, 'uploaded', ?)`).run(
-      videoId, '', 'preprocessed.mp4', originalSize, frameCount
+    db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status, frames_extracted, user_id)
+      VALUES (?, ?, ?, ?, 'uploaded', ?, ?)`).run(
+      videoId, '', 'preprocessed.mp4', originalSize, frameCount, req.userId
     );
 
     logger.info('Frames uploaded', { videoId, frameCount, originalSize, compressedSize });
@@ -260,7 +260,7 @@ router.post('/upload-complete/:videoId', async (req, res) => {
   const { totalChunks, frameCount, preprocessed } = req.body;
 
   const db = getDb();
-  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ?').get(videoId);
+  const video = db.prepare('SELECT * FROM video_analyses WHERE id = ? AND user_id = ?').get(videoId, req.userId);
   if (!video) return res.status(404).json({ error: 'Video not found' });
 
   try {
@@ -321,9 +321,12 @@ const tusServer = new TusServer({
 
       const uploadPath = path.join(TUS_DIR, upload.id);
 
-      db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status, drill_bookmarks, recording_source)
-        VALUES (?, ?, ?, ?, 'uploaded', ?, 'session')`).run(
-        videoId, uploadPath, originalName, upload.size || 0, JSON.stringify(drillBookmarks)
+      // Get userId from tus metadata or request
+      const tusUserId = metadata.userId ? parseInt(metadata.userId, 10) : (req.userId || 1);
+
+      db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status, drill_bookmarks, recording_source, user_id)
+        VALUES (?, ?, ?, ?, 'uploaded', ?, 'session', ?)`).run(
+        videoId, uploadPath, originalName, upload.size || 0, JSON.stringify(drillBookmarks), tusUserId
       );
 
       logger.info('Tus upload complete', { videoId, uploadId: upload.id, size: upload.size, bookmarks: drillBookmarks.length });

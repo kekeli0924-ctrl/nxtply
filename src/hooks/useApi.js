@@ -68,7 +68,7 @@ async function attemptRefresh() {
   return refreshPromise;
 }
 
-async function apiFetch(path, options = {}) {
+export async function apiFetch(path, options = {}) {
   const token = getToken();
 
   const headers = { 'Content-Type': 'application/json' };

@@ -101,6 +101,14 @@ router.post('/session-comments/:sessionId', (req, res) => {
 router.get('/session-comments/:sessionId', (req, res) => {
   const db = getDb();
 
+  // Verify the requesting user owns this session (or is the coach)
+  const session = db.prepare('SELECT user_id FROM sessions WHERE id = ?').get(req.params.sessionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const isOwner = session.user_id === req.userId;
+  const isCoach = db.prepare('SELECT id FROM coach_players WHERE coach_id = ? AND player_id = ?').get(req.userId, session.user_id);
+  if (!isOwner && !isCoach) return res.status(403).json({ error: 'Access denied' });
+
   const comments = db.prepare(`
     SELECT sc.*, u.username
     FROM session_comments sc
