@@ -28,7 +28,7 @@ import { AskComposed } from './components/AskComposed';
 import { SessionCompleteScreen } from './components/SessionCompleteScreen';
 import { SessionComments } from './components/SessionComments';
 import { ParentDashboard } from './components/ParentDashboard';
-import { DashboardIcon, PaceIcon, PlusIcon, ListIcon, SocialIcon, CalendarIcon, TargetIcon, BrainIcon, RosterIcon, SettingsIcon } from './components/NavIcons';
+import { DashboardIcon, PaceIcon, PlusIcon, ListIcon, SocialIcon, CalendarIcon, TargetIcon, BrainIcon, RosterIcon, SettingsIcon, ScoutIcon } from './components/NavIcons';
 import { PaceTab } from './components/PaceTab';
 import { SessionDetail } from './components/SessionDetail';
 import { Toast } from './components/ui/Toast';
@@ -43,6 +43,7 @@ const PLAYER_TABS = [
   { id: 'dashboard', label: 'Home', icon: DashboardIcon },
   { id: 'pace', label: 'Pace', icon: PaceIcon },
   { id: 'plan', label: 'Plan', icon: CalendarIcon },
+  { id: 'scouting', label: 'Scout', icon: ScoutIcon },
   { id: 'drills', label: 'Drills', icon: TargetIcon },
   { id: 'social', label: 'Community', icon: SocialIcon },
 ];
