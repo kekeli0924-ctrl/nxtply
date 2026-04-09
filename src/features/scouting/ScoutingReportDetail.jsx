@@ -413,6 +413,7 @@ function extractKeyPlayers(content) {
     // Extract name (bolded or first word group)
     const nameMatch = cleaned.match(/\*\*(.+?)\*\*/);
     let name = nameMatch ? nameMatch[1] : cleaned.split(/[:(,\-–—]/)[0].trim();
+    name = name.replace(/\*+/g, '').trim(); // strip leftover markdown asterisks
 
     // Extract number
     const numMatch = name.match(/#(\d+)/);
@@ -426,7 +427,8 @@ function extractKeyPlayers(content) {
 
     // Description is everything after the name/position
     let description = cleaned
-      .replace(/\*\*(.+?)\*\*/, '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*+/g, '')
       .replace(/\([^)]+\)/, '')
       .replace(/^[\s:,\-–—]+/, '')
       .trim();
