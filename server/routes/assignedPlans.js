@@ -11,7 +11,7 @@ function rowToPlan(row) {
     coachId: row.coach_id,
     playerId: row.player_id,
     date: row.date,
-    drills: JSON.parse(row.drills || '[]'),
+    drills: (JSON.parse(row.drills || '[]')).map(d => typeof d === 'string' ? d : d.name),
     targetDuration: row.target_duration,
     notes: row.notes || '',
     createdAt: row.created_at,

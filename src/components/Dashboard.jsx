@@ -8,7 +8,7 @@ import { DateBrowser } from './DateBrowser';
 import { SocialFeed } from './SocialFeed';
 import {
   getStreak, getAverageStat, getShotPercentage, getPassPercentage,
-  formatDate, formatPercentage, computeTrainingScore,
+  formatDate, formatPercentage, computeTrainingScore, computeTrainingScoreWithDeltas,
   getCurrentWeekSessionCount, getWeeklyLoads,
   computeFatigueDecay, generateInsights,
 } from '../utils/stats';
@@ -43,24 +43,39 @@ function GoalRing({ current, goal, size = 56 }) {
   );
 }
 
-function TrainingScoreRing({ score }) {
+function TrainingScoreRing({ score, prevScore, delta }) {
   const size = 88;
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - score / 100);
+  const prevOffset = prevScore != null ? circumference * (1 - prevScore / 100) : null;
   const color = score >= 80 ? '#1E3A5F' : score >= 60 ? '#16A34A' : score >= 40 ? '#D97706' : '#DC2626';
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
+        {/* Background track */}
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#E8E5E0" strokeWidth={5} />
+        {/* Ghost ring — last week's score */}
+        {prevOffset != null && (
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={5}
+            strokeDasharray={circumference} strokeDashoffset={prevOffset} strokeLinecap="round"
+            opacity={0.12} />
+        )}
+        {/* Current score arc */}
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={5}
           strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
           style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-bold" style={{ color }}>{score}</span>
-        <span className="text-[10px] text-gray-400">/ 100</span>
+        {delta != null && delta !== 0 ? (
+          <span className={`text-[10px] font-semibold ${delta > 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {delta > 0 ? '+' : ''}{delta}
+          </span>
+        ) : (
+          <span className="text-[10px] text-gray-400">/ 100</span>
+        )}
       </div>
     </div>
   );
@@ -152,7 +167,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
 
       {/* Training Score Hero */}
       {(() => {
-        const trainingScore = computeTrainingScore(sessions, weeklyGoal);
+        const trainingScore = computeTrainingScoreWithDeltas(sessions, weeklyGoal);
         if (!trainingScore) return (
           <div className="flex gap-4 items-start">
             <div className="flex-1">
@@ -168,7 +183,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
           <>
             <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-5" style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
               <div className="flex items-center gap-6">
-                <TrainingScoreRing score={trainingScore.score} />
+                <TrainingScoreRing score={trainingScore.score} prevScore={trainingScore.prevScore} delta={trainingScore.delta} />
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -177,11 +192,18 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
                     </div>
                     <GoalRing current={getCurrentWeekSessionCount(sessions)} goal={weeklyGoal} size={48} />
                   </div>
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-1.5">
-                    {Object.entries(trainingScore.breakdown).map(([key, val]) => (
-                      <div key={key} className="flex items-center justify-between">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {Object.entries(trainingScore.breakdown).map(([key, { value, delta }]) => (
+                      <div key={key} className="flex items-center gap-1">
                         <span className="text-[10px] text-gray-400">{BREAKDOWN_LABELS[key]}</span>
-                        <span className="text-[10px] font-semibold text-gray-700">{val}</span>
+                        <span className="text-[10px] font-semibold text-gray-700">
+                          {value}
+                          {delta != null && delta !== 0 && (
+                            <span className={`ml-0.5 ${delta > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {delta > 0 ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </span>
                       </div>
                     ))}
                   </div>

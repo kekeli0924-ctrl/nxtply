@@ -350,6 +350,45 @@ export function computeTrainingScore(sessions, weeklyGoal = 3) {
   return { score, breakdown: { consistency, shooting, passing, physical, endurance, mental } };
 }
 
+/**
+ * Compute Training Score with week-over-week deltas for each metric.
+ * Returns current score, previous week's score, and per-metric deltas.
+ */
+export function computeTrainingScoreWithDeltas(sessions, weeklyGoal = 3) {
+  const current = computeTrainingScore(sessions, weeklyGoal);
+  if (!current) return null;
+
+  // Find Monday of the current week
+  const now = new Date();
+  const day = now.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(monday.getDate() + mondayOffset);
+  const mondayStr = monday.toISOString().slice(0, 10);
+
+  // Sessions before this week = "last week's snapshot"
+  const prevSessions = sessions.filter(s => s.date < mondayStr);
+  const prev = computeTrainingScore(prevSessions, weeklyGoal);
+
+  const breakdown = {};
+  for (const key of Object.keys(current.breakdown)) {
+    const value = current.breakdown[key];
+    const prevValue = prev?.breakdown?.[key] ?? null;
+    breakdown[key] = {
+      value,
+      prev: prevValue,
+      delta: prevValue != null ? value - prevValue : null,
+    };
+  }
+
+  return {
+    score: current.score,
+    prevScore: prev?.score ?? null,
+    delta: prev ? current.score - prev.score : null,
+    breakdown,
+  };
+}
+
 // === Four-Pillar Development Scores ===
 export function computeFourPillars(sessions, decisionJournal = []) {
   if (sessions.length < 5) return null;
