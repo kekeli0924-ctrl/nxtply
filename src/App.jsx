@@ -907,7 +907,7 @@ function AppMain({ authUser, onLogout }) {
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} onBack={() => setActiveTab(previousTab)} />
         </div>
         <div className={activeTab === 'pace' ? '' : 'hidden'}>
-          <PaceTab sessions={sessions} />
+          <PaceTab sessions={sessions} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} />
         </div>
         <div className={activeTab === 'plan' ? '' : 'hidden'}>
           <PlanWeekView

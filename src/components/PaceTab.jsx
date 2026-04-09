@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { BarChart, Bar, LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Cell } from 'recharts';
 import { Card } from './ui/Card';
 import { computePace } from '../utils/pace';
-import { getAverageStat, getShotPercentage, getPassPercentage, getWeeklyLoads } from '../utils/stats';
+import { getAverageStat, getShotPercentage, getPassPercentage, getWeeklyLoads, getCurrentWeekSessionCount } from '../utils/stats';
+import { BENCHMARKS, calculatePercentile } from '../utils/benchmarks';
 
 const PACE_COLORS = {
   accelerating: '#16A34A',
@@ -74,10 +75,17 @@ function PaceHeroCircle({ pace }) {
   );
 }
 
-function ExpandableMetricCard({ metricKey, metric, sessions }) {
+function ExpandableMetricCard({ metricKey, metric, sessions, ageGroup, skillLevel }) {
   const [expanded, setExpanded] = useState(false);
   const config = METRIC_CONFIG[metricKey];
   if (!metric || !config) return null;
+
+  // Cohort median for reference line
+  const benchKey = PACE_TO_BENCHMARK[metricKey];
+  const benchmarkLevel = SKILL_MAP[skillLevel] || null;
+  const cohortMedian = (ageGroup && benchmarkLevel && benchKey)
+    ? BENCHMARKS?.[ageGroup]?.[benchmarkLevel]?.[benchKey]?.P50 ?? null
+    : null;
 
   const color = PACE_COLORS[metric.label] || PACE_COLORS.steady;
   const velocity = metric.velocityPct;
@@ -179,6 +187,10 @@ function ExpandableMetricCard({ metricKey, metric, sessions }) {
                   formatter={(val) => [`${val}${config.unit}`, config.name]}
                   contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #E8E5E0' }}
                 />
+                {cohortMedian != null && (
+                  <ReferenceLine y={cohortMedian} stroke="#9CA3AF" strokeDasharray="4 4"
+                    label={{ value: `${ageGroup} avg`, position: 'right', fontSize: 9, fill: '#9CA3AF' }} />
+                )}
                 <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={{ r: 3, fill: color }} />
               </LineChart>
             </ResponsiveContainer>
@@ -191,7 +203,129 @@ function ExpandableMetricCard({ metricKey, metric, sessions }) {
   );
 }
 
-export function PaceTab({ sessions = [], onViewMetric }) {
+// ── Skill level mapping (onboarding values → benchmark keys) ──
+const SKILL_MAP = {
+  'Recreational': 'Recreational',
+  'Academy': 'Academy',
+  'Semi-Pro': 'Semi-Pro',
+  'Professional': 'Professional',
+  // Legacy / alternate values
+  'beginner': 'Recreational',
+  'intermediate': 'Academy',
+  'advanced': 'Semi-Pro',
+};
+
+// Map Pace metric keys → benchmark metric keys
+const PACE_TO_BENCHMARK = {
+  shooting: 'shotAccuracy',
+  passing: 'passAccuracy',
+  consistency: 'sessionsPerWeek',
+  load: 'avgSessionLoad',
+  duration: null, // no direct benchmark match
+};
+
+function PeerContextCard({ pace, sessions, ageGroup, skillLevel }) {
+  const benchmarkLevel = SKILL_MAP[skillLevel] || 'Academy';
+  const benchmarks = BENCHMARKS?.[ageGroup]?.[benchmarkLevel];
+
+  if (!benchmarks || !pace?.metrics) return null;
+
+  // Compute player's current values and percentiles
+  const comparisons = useMemo(() => {
+    const results = [];
+
+    for (const [paceKey, benchKey] of Object.entries(PACE_TO_BENCHMARK)) {
+      if (!benchKey || !benchmarks[benchKey]) continue;
+      const metric = pace.metrics[paceKey];
+      if (!metric || metric.thisWeek == null) continue;
+
+      const dist = benchmarks[benchKey];
+      const playerValue = metric.thisWeek;
+      const percentile = calculatePercentile(playerValue, dist);
+      const median = dist.P50;
+
+      results.push({
+        paceKey,
+        benchKey,
+        name: METRIC_CONFIG[paceKey]?.name || paceKey,
+        unit: METRIC_CONFIG[paceKey]?.unit || '',
+        playerValue,
+        median,
+        percentile: Math.round(percentile),
+        aboveMedian: playerValue >= median,
+      });
+    }
+
+    // Sort: best percentile first, worst last
+    results.sort((a, b) => b.percentile - a.percentile);
+    return results;
+  }, [pace, benchmarks]);
+
+  if (comparisons.length === 0) return null;
+
+  // Pick the 3 most interesting insights
+  const insights = useMemo(() => {
+    const picks = [];
+    if (comparisons.length > 0) picks.push(comparisons[0]); // best
+    if (comparisons.length > 1) picks.push(comparisons[comparisons.length - 1]); // worst
+    // Find one near a milestone (P75 or P90)
+    const nearMilestone = comparisons.find(c =>
+      !picks.includes(c) && (Math.abs(c.percentile - 75) <= 5 || Math.abs(c.percentile - 90) <= 5)
+    );
+    if (nearMilestone) picks.push(nearMilestone);
+    else if (comparisons.length > 2 && !picks.includes(comparisons[1])) picks.push(comparisons[1]);
+    return picks;
+  }, [comparisons]);
+
+  function insightText(c) {
+    if (c.percentile >= 90) return `Your ${c.name.toLowerCase()} puts you in the top 10% of ${ageGroup} ${benchmarkLevel} players. Elite level.`;
+    if (c.percentile >= 75) return `Your ${c.name.toLowerCase()} (${c.playerValue}${c.unit}) is above 75% of ${ageGroup} ${benchmarkLevel} players. Strong.`;
+    if (c.percentile >= 50) return `Your ${c.name.toLowerCase()} (${c.playerValue}${c.unit}) is above average for ${ageGroup} ${benchmarkLevel} players. Keep pushing.`;
+    if (c.percentile >= 25) return `Your ${c.name.toLowerCase()} is below the median for ${ageGroup} ${benchmarkLevel} (${c.median}${c.unit}). Focused work here pays off fast.`;
+    return `Your ${c.name.toLowerCase()} has room to grow — most ${ageGroup} ${benchmarkLevel} players are at ${c.median}${c.unit}. A dedicated session each week can close the gap.`;
+  }
+
+  function percentileColor(pct) {
+    if (pct >= 75) return 'text-green-600 bg-green-50';
+    if (pct >= 50) return 'text-accent bg-accent/10';
+    if (pct >= 25) return 'text-amber-600 bg-amber-50';
+    return 'text-red-500 bg-red-50';
+  }
+
+  return (
+    <Card>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xs font-bold text-gray-900">Players Like You</h4>
+            <p className="text-[10px] text-gray-400">{ageGroup} {benchmarkLevel}</p>
+          </div>
+          <span className="text-lg">👥</span>
+        </div>
+
+        {/* Percentile pills */}
+        <div className="flex flex-wrap gap-2">
+          {comparisons.map(c => (
+            <div key={c.paceKey} className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${percentileColor(c.percentile)}`}>
+              {c.name}: P{c.percentile}
+            </div>
+          ))}
+        </div>
+
+        {/* Conversational insights */}
+        <div className="space-y-2 pt-1">
+          {insights.map(c => (
+            <p key={c.paceKey} className="text-xs text-gray-600 leading-relaxed">
+              {c.percentile >= 50 ? '✦ ' : '→ '}{insightText(c)}
+            </p>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function PaceTab({ sessions = [], onViewMetric, ageGroup, skillLevel }) {
   const pace = useMemo(() => computePace(sessions, 4), [sessions]);
 
   // Weekly history for bar chart
@@ -255,6 +389,21 @@ export function PaceTab({ sessions = [], onViewMetric }) {
         </Card>
       )}
 
+      {/* Peer Comparison */}
+      {ageGroup && skillLevel ? (
+        <PeerContextCard pace={pace} sessions={sessions} ageGroup={ageGroup} skillLevel={skillLevel} />
+      ) : (
+        <Card>
+          <div className="flex items-center gap-3 py-1">
+            <span className="text-lg">👥</span>
+            <div>
+              <p className="text-xs font-semibold text-gray-700">See how you compare</p>
+              <p className="text-[10px] text-gray-400">Set your age group and skill level in Profile to unlock peer benchmarks.</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Weekly Pace History */}
       {weeklyHistory.length >= 2 && (
         <div>
@@ -290,6 +439,8 @@ export function PaceTab({ sessions = [], onViewMetric }) {
               metricKey={key}
               metric={metric}
               sessions={sessions}
+              ageGroup={ageGroup}
+              skillLevel={skillLevel}
             />
           ))}
         </div>
