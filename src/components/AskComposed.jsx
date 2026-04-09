@@ -116,7 +116,7 @@ export function AskComposed({ open, onClose, sessionCount = 0, hasProgram = fals
           {loading && (
             <div className="flex justify-start">
               <div className="bg-gray-50 rounded-2xl rounded-bl-sm px-4 py-2.5">
-                <p className="text-xs text-gray-400 animate-pulse">Composing...</p>
+                <p className="text-xs text-gray-400 animate-pulse italic font-heading">Composing...</p>
               </div>
             </div>
           )}

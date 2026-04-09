@@ -4,7 +4,7 @@ import { z } from 'zod';
 const uuid = z.string().min(1).max(100);
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD');
 const shortText = z.string().max(2000).default('');
-const jsonObj = z.record(z.unknown()).nullable().optional();
+const jsonObj = z.any().nullable().optional();
 
 // Sessions
 export const sessionSchema = z.object({
