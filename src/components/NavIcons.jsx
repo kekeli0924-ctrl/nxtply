@@ -1,3 +1,10 @@
+export function PaceIcon({ active }) {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  );
+}
 export function DashboardIcon({ active }) {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke={active ? '#1E3A5F' : 'currentColor'} strokeWidth={2}>

@@ -28,7 +28,8 @@ import { AskComposed } from './components/AskComposed';
 import { SessionCompleteScreen } from './components/SessionCompleteScreen';
 import { SessionComments } from './components/SessionComments';
 import { ParentDashboard } from './components/ParentDashboard';
-import { DashboardIcon, PlusIcon, ListIcon, SocialIcon, CalendarIcon, TargetIcon, BrainIcon, RosterIcon, SettingsIcon } from './components/NavIcons';
+import { DashboardIcon, PaceIcon, PlusIcon, ListIcon, SocialIcon, CalendarIcon, TargetIcon, BrainIcon, RosterIcon, SettingsIcon } from './components/NavIcons';
+import { PaceTab } from './components/PaceTab';
 import { SessionDetail } from './components/SessionDetail';
 import { Toast } from './components/ui/Toast';
 import { Button } from './components/ui/Button';
@@ -40,6 +41,7 @@ import { getNewBadges } from './utils/gamification';
 
 const PLAYER_TABS = [
   { id: 'dashboard', label: 'Home', icon: DashboardIcon },
+  { id: 'pace', label: 'Pace', icon: PaceIcon },
   { id: 'plan', label: 'Plan', icon: CalendarIcon },
   { id: 'drills', label: 'Drills', icon: TargetIcon },
   { id: 'social', label: 'Community', icon: SocialIcon },
@@ -903,6 +905,9 @@ function AppMain({ authUser, onLogout }) {
         </div>
         <div className={activeTab === 'history' ? '' : 'hidden'}>
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} onBack={() => setActiveTab(previousTab)} />
+        </div>
+        <div className={activeTab === 'pace' ? '' : 'hidden'}>
+          <PaceTab sessions={sessions} />
         </div>
         <div className={activeTab === 'plan' ? '' : 'hidden'}>
           <PlanWeekView
