@@ -12,6 +12,7 @@ import {
   getCurrentWeekSessionCount, getWeeklyLoads,
   computeFatigueDecay, generateInsights,
 } from '../utils/stats';
+import { computePace } from '../utils/pace';
 
 const BREAKDOWN_LABELS = {
   consistency: 'Consistency',
@@ -98,6 +99,104 @@ function InsightsCard({ insights }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// ── Weekly Pace Card — the "Sunday night pull" ──────────────
+
+const PACE_COLORS = { accelerating: '#16A34A', steady: '#D97706', stalling: '#DC2626' };
+
+function WeeklyPaceCard({ sessions, idpGoals = [], onNavigate }) {
+  const pace = useMemo(() => computePace(sessions, 4), [sessions]);
+  if (!pace) return null;
+
+  const { overall, metrics, recommendation } = pace;
+  const color = PACE_COLORS[overall.label] || PACE_COLORS.steady;
+
+  // Build narrative lines from metric changes
+  const lines = useMemo(() => {
+    const result = [];
+
+    // Best improving metric
+    const improving = Object.entries(metrics)
+      .filter(([, m]) => m?.velocityPct > 0)
+      .sort((a, b) => b[1].velocityPct - a[1].velocityPct);
+    if (improving.length > 0) {
+      const [key, m] = improving[0];
+      const names = { shooting: 'shot accuracy', passing: 'pass accuracy', consistency: 'session frequency', duration: 'session duration', load: 'training load' };
+      result.push({ type: 'up', text: `Your ${names[key] || key} climbed ${m.velocityPct}% this week.` });
+    }
+
+    // Worst declining metric
+    const declining = Object.entries(metrics)
+      .filter(([, m]) => m?.velocityPct < -2)
+      .sort((a, b) => a[1].velocityPct - b[1].velocityPct);
+    if (declining.length > 0) {
+      const [key, m] = declining[0];
+      const tips = {
+        shooting: 'Add one focused finishing drill.',
+        passing: 'Try a wall-pass session this week.',
+        consistency: 'Even a short 15-minute session counts.',
+        duration: 'Try adding 10 minutes to your next session.',
+        load: 'Push the intensity slightly or add a session.',
+      };
+      result.push({ type: 'down', text: `${key[0].toUpperCase() + key.slice(1)} is declining. ${tips[key] || ''}` });
+    }
+
+    // IDP projection (if there's a shooting IDP goal)
+    const shootingGoal = idpGoals.find(g => g.status !== 'completed' && g.corner?.toLowerCase?.()?.includes?.('technical'));
+    if (shootingGoal && metrics.shooting?.thisWeek != null && metrics.shooting?.velocityPct > 0) {
+      const target = shootingGoal.progress != null ? 100 : 70; // assume 70% if no specific target
+      const current = metrics.shooting.thisWeek;
+      const weeklyGain = metrics.shooting.velocityPct;
+      if (current < target && weeklyGain > 0) {
+        const weeksToTarget = Math.ceil((target - current) / weeklyGain);
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + weeksToTarget * 7);
+        const monthName = targetDate.toLocaleString('en-US', { month: 'long' });
+        result.push({ type: 'target', text: `At this pace, you'll hit your IDP target by ${monthName}.` });
+      }
+    }
+
+    return result;
+  }, [metrics, idpGoals]);
+
+  if (lines.length === 0 && !recommendation?.text) return null;
+
+  const iconMap = { up: '↗', down: '↘', target: '🎯' };
+  const colorMap = { up: 'text-green-600', down: 'text-red-500', target: 'text-accent' };
+
+  return (
+    <button
+      onClick={() => onNavigate?.('pace')}
+      className="w-full text-left bg-surface rounded-xl border border-gray-100 shadow-card p-4 space-y-2.5 transition-all hover:shadow-md"
+      style={{ borderLeft: `3px solid ${color}` }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold" style={{ color }}>
+            {overall.velocityPct > 0 ? '+' : ''}{overall.velocityPct}%
+          </span>
+          <span className="text-xs font-semibold text-gray-700">Your Pace This Week</span>
+        </div>
+        <span className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide">
+          {overall.label}
+        </span>
+      </div>
+
+      {lines.map((line, i) => (
+        <p key={i} className="text-xs text-gray-600 leading-relaxed">
+          <span className={`font-semibold ${colorMap[line.type] || ''}`}>{iconMap[line.type] || '•'} </span>
+          {line.text}
+        </p>
+      ))}
+
+      {lines.length === 0 && recommendation?.text && (
+        <p className="text-xs text-gray-500 leading-relaxed">{recommendation.text}</p>
+      )}
+
+      <p className="text-[10px] text-accent font-medium">View full Pace breakdown →</p>
+    </button>
   );
 }
 
@@ -215,6 +314,9 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
           </>
         );
       })()}
+
+      {/* Weekly Pace Card — the Sunday night pull */}
+      <WeeklyPaceCard sessions={sessions} idpGoals={idpGoals} onNavigate={onNavigate} />
 
       {/* Welcome Back (3+ days inactive) */}
       <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
