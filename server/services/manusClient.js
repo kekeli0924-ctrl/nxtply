@@ -124,11 +124,7 @@ export async function createScoutingTask(formData) {
       'x-manus-api-key': process.env.MANUS_API_KEY,
     },
     body: JSON.stringify({
-      prompt,
-      title,
-      agentProfile: 'manus-1.6',
-      taskMode: 'agent',
-      locale: 'en-US',
+      message: { content: prompt },
     }),
   });
 
@@ -161,33 +157,57 @@ export async function getTaskResult(taskId) {
 
   logger.info('Polling Manus task', { taskId });
 
-  const res = await fetch(`${MANUS_BASE}/v2/task.detail?task_id=${encodeURIComponent(taskId)}`, {
+  // Step 1: Get task status from task.detail
+  const statusRes = await fetch(`${MANUS_BASE}/v2/task.detail?task_id=${encodeURIComponent(taskId)}`, {
     method: 'GET',
-    headers: {
-      'x-manus-api-key': process.env.MANUS_API_KEY,
-    },
+    headers: { 'x-manus-api-key': process.env.MANUS_API_KEY },
   });
+  const statusData = await statusRes.json();
 
-  const data = await res.json();
-
-  if (!res.ok || data.ok === false) {
-    const errMsg = data.error?.message || data.error || `Manus API error: ${res.status}`;
+  if (!statusRes.ok || statusData.ok === false) {
+    const errMsg = statusData.error?.message || statusData.error || `Manus API error: ${statusRes.status}`;
     logger.error('Manus task poll failed', { taskId, error: errMsg });
     throw new Error(errMsg);
   }
 
-  // Extract the assistant's output (last assistant message)
+  const task = statusData.task || statusData;
+  const rawStatus = task.status || 'pending';
+  // Map: completed/stopped → completed, failed/error → failed
+  const status = (rawStatus === 'completed' || rawStatus === 'stopped') ? 'completed'
+    : (rawStatus === 'failed' || rawStatus === 'error') ? 'failed'
+    : rawStatus;
+
+  // Step 2: If completed, fetch output from task.listMessages
   let reportContent = null;
-  if (data.output && Array.isArray(data.output)) {
-    const assistantMessages = data.output.filter(m => m.role === 'assistant');
-    if (assistantMessages.length > 0) {
-      reportContent = assistantMessages[assistantMessages.length - 1].content;
+  if (status === 'completed') {
+    try {
+      const msgRes = await fetch(`${MANUS_BASE}/v2/task.listMessages?task_id=${encodeURIComponent(taskId)}`, {
+        method: 'GET',
+        headers: { 'x-manus-api-key': process.env.MANUS_API_KEY },
+      });
+      const msgData = await msgRes.json();
+
+      if (msgData.ok && msgData.messages) {
+        // Find assistant messages with content (the report)
+        const assistantMsgs = msgData.messages
+          .filter(m => m.type === 'assistant_message' && m.assistant_message?.content)
+          .map(m => m.assistant_message.content);
+
+        // The longest assistant message is typically the final report
+        if (assistantMsgs.length > 0) {
+          reportContent = assistantMsgs.sort((a, b) => b.length - a.length)[0];
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to fetch Manus messages', { taskId, error: err.message });
     }
   }
 
+  logger.info('Manus task polled', { taskId, status, hasOutput: !!reportContent, contentLength: reportContent?.length });
+
   return {
-    status: data.status || 'pending',
+    status,
     output: reportContent,
-    creditUsage: data.credit_usage || 0,
+    creditUsage: task.credit_usage || statusData.credit_usage || 0,
   };
 }

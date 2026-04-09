@@ -396,14 +396,37 @@ function KeyPlayersSection({ content }) {
 }
 
 function extractKeyPlayers(content) {
-  // Find the Key Players section
-  const keyPlayersMatch = content.match(/##\s*Key Players[\s\S]*?(?=##|$)/i);
+  // Find the Key Players section — handles "## Key Players", "## 4. Key Players", etc.
+  const keyPlayersMatch = content.match(/##\s*(?:\d+\.\s*)?Key Players[\s\S]*?(?=##|$)/i);
   if (!keyPlayersMatch) return [];
 
   const section = keyPlayersMatch[0];
   const players = [];
 
-  // Match patterns like "- **Player Name** (Position): Description" or "- **#10 Player Name** — Description"
+  // Strategy 1: Parse markdown table rows (| **Name** | Position | Notes |)
+  const tableRows = section.split('\n').filter(l => l.trim().startsWith('|') && !l.includes('---') && !l.includes('Player') && l.includes('|'));
+  if (tableRows.length > 0) {
+    for (const row of tableRows) {
+      const cells = row.split('|').map(c => c.trim()).filter(Boolean);
+      if (cells.length < 2) continue;
+      let name = cells[0].replace(/\*+/g, '').trim();
+      if (!name || name.length < 2 || name.length > 40) continue;
+      const numMatch = name.match(/#(\d+)/);
+      const number = numMatch ? numMatch[1] : null;
+      name = name.replace(/#\d+\s*/, '').trim();
+      const position = cells[1]?.replace(/\*+/g, '').trim() || null;
+      let description = cells.slice(2).join(' ').replace(/\*+/g, '').trim();
+      if (description.length > 120) description = description.slice(0, 117) + '...';
+      const lc = (cells.join(' ')).toLowerCase();
+      const threat = (lc.includes('key') || lc.includes('star') || lc.includes('captain') || lc.includes('top scorer') || lc.includes('dangerous') || lc.includes('debuted'))
+        ? 'high' : (lc.includes('strong') || lc.includes('effective') || lc.includes('fast') || lc.includes('creative') || lc.includes('exceptional') || lc.includes('excellent'))
+        ? 'medium' : 'low';
+      players.push({ name, number, position, description, threat });
+    }
+    if (players.length > 0) return players.slice(0, 6);
+  }
+
+  // Strategy 2: Parse bullet-point lists (- **Player Name** (Position): Description)
   const lines = section.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('*'));
 
   for (const line of lines) {
