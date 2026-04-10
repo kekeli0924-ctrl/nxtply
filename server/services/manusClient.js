@@ -99,6 +99,26 @@ function buildPrompt(formData) {
 
 // ── API Functions ────────────────────────────────
 
+// Manus API calls should never hang a request handler. Abort after 60s.
+const MANUS_TIMEOUT_MS = 60 * 1000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = MANUS_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(`Manus API request timed out after ${timeoutMs / 1000}s`);
+      timeoutErr.code = 'MANUS_TIMEOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function isConfigured() {
   return !!process.env.MANUS_API_KEY;
 }
@@ -117,7 +137,7 @@ export async function createScoutingTask(formData) {
 
   logger.info('Creating Manus scouting task', { club: formData.clubName, level: formData.level });
 
-  const res = await fetch(`${MANUS_BASE}/v2/task.create`, {
+  const res = await fetchWithTimeout(`${MANUS_BASE}/v2/task.create`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -157,8 +177,8 @@ export async function getTaskResult(taskId) {
 
   logger.info('Polling Manus task', { taskId });
 
-  // Step 1: Get task status from task.detail
-  const statusRes = await fetch(`${MANUS_BASE}/v2/task.detail?task_id=${encodeURIComponent(taskId)}`, {
+  // Step 1: Get task status from task.detail (with timeout)
+  const statusRes = await fetchWithTimeout(`${MANUS_BASE}/v2/task.detail?task_id=${encodeURIComponent(taskId)}`, {
     method: 'GET',
     headers: { 'x-manus-api-key': process.env.MANUS_API_KEY },
   });
@@ -181,7 +201,7 @@ export async function getTaskResult(taskId) {
   let reportContent = null;
   if (status === 'completed') {
     try {
-      const msgRes = await fetch(`${MANUS_BASE}/v2/task.listMessages?task_id=${encodeURIComponent(taskId)}`, {
+      const msgRes = await fetchWithTimeout(`${MANUS_BASE}/v2/task.listMessages?task_id=${encodeURIComponent(taskId)}`, {
         method: 'GET',
         headers: { 'x-manus-api-key': process.env.MANUS_API_KEY },
       });
