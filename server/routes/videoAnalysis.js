@@ -9,6 +9,7 @@ import { logger } from '../logger.js';
 import { analyzeVideo, analyzeWithFrames, isConfigured } from '../services/videoAnalyzer.js';
 import { Server as TusServer } from '@tus/server';
 import { FileStore } from '@tus/file-store';
+import { enforceDailyQuota } from '../middleware/quota.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, '..', 'data', 'uploads');
@@ -23,12 +24,53 @@ const storage = multer.diskStorage({
   },
 });
 
+// Video upload validation — check extension, MIME type, and magic bytes.
+// Magic bytes are verified after multer finishes writing the file (see verifyVideoMagicBytes below).
+const ALLOWED_EXT = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
+const ALLOWED_MIME = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/webm',
+  'video/x-matroska',
+]);
+
 const fileFilter = (req, file, cb) => {
-  const allowed = ['.mp4', '.mov', '.avi', '.webm', '.mkv'];
   const ext = path.extname(file.originalname).toLowerCase();
-  if (allowed.includes(ext)) cb(null, true);
-  else cb(new Error(`Unsupported file type: ${ext}. Accepted: ${allowed.join(', ')}`));
+  if (!ALLOWED_EXT.includes(ext)) {
+    return cb(new Error(`Unsupported file extension: ${ext}. Accepted: ${ALLOWED_EXT.join(', ')}`));
+  }
+  // Multer gives us the client-declared MIME type. Reject if it doesn't match.
+  // (Not cryptographic — magic bytes verify the real type post-write.)
+  if (file.mimetype && !ALLOWED_MIME.has(file.mimetype) && !file.mimetype.startsWith('video/')) {
+    return cb(new Error(`Unsupported MIME type: ${file.mimetype}`));
+  }
+  cb(null, true);
 };
+
+// Video magic bytes — just enough to reject files renamed to .mp4 that aren't actually video.
+const VIDEO_MAGIC_BYTES = [
+  // MP4 / MOV — 'ftyp' at offset 4
+  { offset: 4, bytes: Buffer.from('ftyp', 'ascii') },
+  // WebM / MKV — EBML header 0x1A 0x45 0xDF 0xA3
+  { offset: 0, bytes: Buffer.from([0x1a, 0x45, 0xdf, 0xa3]) },
+  // AVI — 'RIFF' at 0, 'AVI ' at 8
+  { offset: 0, bytes: Buffer.from('RIFF', 'ascii') },
+];
+
+async function verifyVideoMagicBytes(filePath) {
+  try {
+    const fd = await fs.promises.open(filePath, 'r');
+    const buf = Buffer.alloc(16);
+    await fd.read(buf, 0, 16, 0);
+    await fd.close();
+    return VIDEO_MAGIC_BYTES.some(({ offset, bytes }) => {
+      return buf.slice(offset, offset + bytes.length).equals(bytes);
+    });
+  } catch {
+    return false;
+  }
+}
 
 const upload = multer({ storage, fileFilter, limits: { fileSize: 500 * 1024 * 1024 } });
 
@@ -75,18 +117,27 @@ router.get('/capabilities', (req, res) => {
   });
 });
 
-// POST /api/video/upload
-router.post('/upload', (req, res) => {
+// POST /api/video/upload — capped at 10 uploads per user per day to prevent abuse
+router.post('/upload', enforceDailyQuota('video-upload', 10, 'Daily video upload limit reached (10/day). Try again tomorrow.'), (req, res) => {
   // Extend timeout for large video files
   req.setTimeout(600000); // 10 minutes
   res.setTimeout(600000);
-  upload.single('video')(req, res, (err) => {
+  upload.single('video')(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large (max 500MB)', code: 'FILE_TOO_LARGE' });
       return res.status(400).json({ error: err.message, code: 'UPLOAD_ERROR' });
     }
     if (err) return res.status(400).json({ error: err.message, code: 'UPLOAD_ERROR' });
     if (!req.file) return res.status(400).json({ error: 'No video file provided', code: 'NO_FILE' });
+
+    // Verify magic bytes to confirm the file is actually a video, not something renamed to .mp4.
+    const isValidVideo = await verifyVideoMagicBytes(req.file.path);
+    if (!isValidVideo) {
+      // Delete the bogus file before rejecting
+      try { await fs.promises.unlink(req.file.path); } catch { /* ignore */ }
+      logger.warn('Rejected upload — invalid video magic bytes', { filename: req.file.originalname, size: req.file.size });
+      return res.status(400).json({ error: 'File does not appear to be a valid video.', code: 'INVALID_VIDEO' });
+    }
 
     const db = getDb();
     const videoId = crypto.randomUUID();
@@ -101,7 +152,8 @@ router.post('/upload', (req, res) => {
 });
 
 // POST /api/video/:videoId/analyze — trigger Gemini analysis
-router.post('/:videoId/analyze', (req, res) => {
+// Capped at 20 per user per day — Gemini calls are expensive
+router.post('/:videoId/analyze', enforceDailyQuota('video-analyze', 20, 'Daily video analysis limit reached (20/day). Try again tomorrow.'), (req, res) => {
   const db = getDb();
   const video = db.prepare('SELECT * FROM video_analyses WHERE id = ? AND user_id = ?').get(req.params.videoId, req.userId);
 

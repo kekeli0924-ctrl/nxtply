@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { getDb } from '../db.js';
 import { logger } from '../logger.js';
+import { enforceDailyQuota } from '../middleware/quota.js';
 
 const router = Router();
 
@@ -66,7 +67,7 @@ function gatherPlayerContext(userId) {
 }
 
 // POST /api/ai/chat
-router.post('/chat', async (req, res) => {
+router.post('/chat', enforceDailyQuota('ai-chat', 50, 'Daily AI chat limit reached (50/day). Try again tomorrow.'), async (req, res) => {
   if (!process.env.GEMINI_API_KEY) {
     return res.status(503).json({ error: 'AI not configured' });
   }

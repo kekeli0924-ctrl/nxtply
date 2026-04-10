@@ -4,11 +4,13 @@ import { getDb } from '../db.js';
 import { logger } from '../logger.js';
 import { createScoutingTask, getTaskResult, isConfigured } from '../services/manusClient.js';
 import { computeRulesBasedBrief, buildWarmupSession, generateAIGamePlan } from '../services/gamePlanGenerator.js';
+import { enforceDailyQuota } from '../middleware/quota.js';
 
 const router = Router();
 
 // POST /api/scouting/request — create a new scouting report
-router.post('/request', async (req, res) => {
+// Manus API is the most expensive external call; cap at 3/day per user.
+router.post('/request', enforceDailyQuota('scouting-request', 3, 'Daily scouting limit reached (3/day). Try again tomorrow.'), async (req, res) => {
   if (!isConfigured()) {
     return res.status(503).json({ error: 'Scouting is not configured. Add MANUS_API_KEY to .env.', code: 'NOT_CONFIGURED' });
   }
@@ -171,7 +173,8 @@ router.post('/check/:id', async (req, res) => {
 });
 
 // POST /api/scouting/generate-game-plan/:id — cross-reference report with player data
-router.post('/generate-game-plan/:id', async (req, res) => {
+// Game plan uses Gemini — cap at 10/day per user.
+router.post('/generate-game-plan/:id', enforceDailyQuota('game-plan', 10, 'Daily game plan limit reached (10/day). Try again tomorrow.'), async (req, res) => {
   const db = getDb();
   const report = db.prepare('SELECT * FROM scouting_reports WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
 
