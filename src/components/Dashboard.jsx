@@ -380,8 +380,8 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
                     {Object.entries(trainingScore.breakdown).map(([key, { value, delta }]) => (
                       <div key={key} className="flex items-center gap-1">
                         <span className="text-[10px] text-gray-400">{BREAKDOWN_LABELS[key]}</span>
-                        <span className="text-[10px] font-semibold text-gray-700">
-                          {value}
+                        <span className={`text-[10px] font-semibold ${value == null ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {value == null ? '—' : value}
                           {delta != null && delta !== 0 && (
                             <span className={`ml-0.5 ${delta > 0 ? 'text-green-500' : 'text-red-500'}`}>
                               {delta > 0 ? '↑' : '↓'}

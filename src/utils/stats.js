@@ -308,44 +308,56 @@ export function computeTrainingScore(sessions, weeklyGoal = 3) {
   if (sessions.length < 3) return null;
   const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
 
-  // Consistency (25%): current week sessions vs goal
+  // Consistency (25%): current week sessions vs goal — always computable
   const weekCount = getCurrentWeekSessionCount(sessions);
   const consistency = Math.min(100, Math.round((weekCount / Math.max(weeklyGoal, 1)) * 100));
 
-  // Shot accuracy (20%)
-  const shooting = getAverageStat(sessions, getShotPercentage, 7) ?? 50;
+  // Shot accuracy (20%) — null if no shooting data logged
+  const shooting = getAverageStat(sessions, getShotPercentage, 7);
 
-  // Pass accuracy (15%)
-  const passing = getAverageStat(sessions, getPassPercentage, 7) ?? 50;
+  // Pass accuracy (15%) — null if no passing data logged
+  const passing = getAverageStat(sessions, getPassPercentage, 7);
 
-  // Physical (15%): RPE sweet-spot score (6-8 is optimal)
+  // Physical (15%): RPE sweet-spot score (6-8 is optimal) — null if no RPE logged
   const recentRPE = sorted.slice(0, 7).map(s => s.fitness?.rpe).filter(Boolean);
-  let physical = 60;
+  let physical = null;
   if (recentRPE.length) {
     const avgRPE = recentRPE.reduce((a, b) => a + b, 0) / recentRPE.length;
     // RPE 7 is perfect (100), penalty grows as distance from 7 increases
     physical = Math.max(0, Math.min(100, 100 - Math.abs(avgRPE - 7) * 20));
   }
 
-  // Endurance (15%): fatigue decay score
-  const endurance = getAverageFatigueScore(sessions, 7) ?? 65;
+  // Endurance (15%): fatigue decay score — null if no fatigue data
+  const endurance = getAverageFatigueScore(sessions, 7);
 
-  // Mental (10%): confidence + focus average
+  // Mental (10%): confidence + focus average — null if no reflections logged
   const recentMental = sorted.slice(0, 5).filter(s => s.reflection?.confidence != null && s.reflection?.focus != null);
-  let mental = 60;
+  let mental = null;
   if (recentMental.length) {
     const avg = recentMental.reduce((sum, s) => sum + (s.reflection.confidence + s.reflection.focus) / 2, 0) / recentMental.length;
     mental = Math.round((avg / 5) * 100);
   }
 
-  const score = Math.round(
-    consistency * 0.25 +
-    shooting * 0.20 +
-    passing * 0.15 +
-    physical * 0.15 +
-    endurance * 0.15 +
-    mental * 0.10
-  );
+  // Weighted-average over only the pillars that have real data.
+  // Consistency is always present; others are included only when non-null.
+  const pillars = [
+    { value: consistency, weight: 0.25 },
+    { value: shooting,    weight: 0.20 },
+    { value: passing,     weight: 0.15 },
+    { value: physical,    weight: 0.15 },
+    { value: endurance,   weight: 0.15 },
+    { value: mental,      weight: 0.10 },
+  ];
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const p of pillars) {
+    if (p.value != null) {
+      weightedSum += p.value * p.weight;
+      totalWeight += p.weight;
+    }
+  }
+  const score = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
+  if (score == null) return null;
 
   return { score, breakdown: { consistency, shooting, passing, physical, endurance, mental } };
 }
@@ -374,17 +386,16 @@ export function computeTrainingScoreWithDeltas(sessions, weeklyGoal = 3) {
   for (const key of Object.keys(current.breakdown)) {
     const value = current.breakdown[key];
     const prevValue = prev?.breakdown?.[key] ?? null;
-    breakdown[key] = {
-      value,
-      prev: prevValue,
-      delta: prevValue != null ? value - prevValue : null,
-    };
+    // Delta only makes sense when BOTH values are real numbers.
+    const delta = (value != null && prevValue != null) ? value - prevValue : null;
+    breakdown[key] = { value, prev: prevValue, delta };
   }
 
   return {
     score: current.score,
     prevScore: prev?.score ?? null,
-    delta: prev ? current.score - prev.score : null,
+    // Only compute overall delta when both scores exist (first-week guard)
+    delta: (prev?.score != null && current.score != null) ? current.score - prev.score : null,
     breakdown,
   };
 }
