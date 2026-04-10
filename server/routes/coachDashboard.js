@@ -220,51 +220,78 @@ router.get('/squad-pulse', requireCoach, (req, res) => {
   const prevWeekStart = new Date(weekStart.getTime() - 7 * 86400000).toISOString().slice(0, 10);
   const prevWeekEnd = new Date(weekStart.getTime() - 86400000).toISOString().slice(0, 10);
 
+  // ─── Batched fetch: one query each for settings, sessions, assigned_plans ───
+  // This replaces the previous N+1 pattern that ran 8+ queries per player.
+  const playerIds = players.map(p => p.id);
+  const placeholders = playerIds.map(() => '?').join(',');
+
+  // All settings for the roster in one query
+  const settingsRows = db.prepare(
+    `SELECT user_id, player_name, position FROM settings WHERE user_id IN (${placeholders})`
+  ).all(...playerIds);
+  const settingsByUserId = new Map();
+  for (const s of settingsRows) settingsByUserId.set(s.user_id, s);
+
+  // All sessions for the roster (last 2 months) in one query
+  const allSessions = db.prepare(
+    `SELECT id, user_id, date, shooting, passing, quick_rating FROM sessions WHERE user_id IN (${placeholders}) AND date >= ? ORDER BY date DESC`
+  ).all(...playerIds, twoMonthsAgo);
+  const sessionsByUserId = new Map();
+  for (const s of allSessions) {
+    if (!sessionsByUserId.has(s.user_id)) sessionsByUserId.set(s.user_id, []);
+    sessionsByUserId.get(s.user_id).push(s);
+  }
+
+  // All assigned plans (this + previous week) in one query
+  const allAssigned = db.prepare(
+    `SELECT player_id, date FROM assigned_plans WHERE player_id IN (${placeholders}) AND date >= ? AND date <= ?`
+  ).all(...playerIds, prevWeekStart, weekEndStr);
+  const assignedByPlayer = new Map();
+  for (const a of allAssigned) {
+    if (!assignedByPlayer.has(a.player_id)) assignedByPlayer.set(a.player_id, []);
+    assignedByPlayer.get(a.player_id).push(a.date);
+  }
+
   const playerPulse = players.map(p => {
-    const settings = db.prepare('SELECT player_name, position FROM settings WHERE user_id = ?').get(p.id);
+    const settings = settingsByUserId.get(p.id);
     const name = settings?.player_name || p.username;
     const position = settings?.position || 'General';
 
-    // Sessions: this week vs last week
-    const sessionsThisWeek = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ? AND date >= ? AND date <= ?').get(p.id, weekStartStr, weekEndStr)?.c || 0;
-    const sessionsLastWeek = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ? AND date >= ? AND date <= ?').get(p.id, prevWeekStart, prevWeekEnd)?.c || 0;
+    const mySessions = sessionsByUserId.get(p.id) || [];
 
-    // Sessions: this month vs last month
-    const sessionsThisMonth = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ? AND date >= ?').get(p.id, monthAgo)?.c || 0;
-    const sessionsLastMonth = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ? AND date >= ? AND date < ?').get(p.id, twoMonthsAgo, monthAgo)?.c || 0;
+    // Filter sessions into time buckets in JS instead of hitting the DB 4 more times.
+    const sessionsThisWeekArr = mySessions.filter(s => s.date >= weekStartStr && s.date <= weekEndStr);
+    const sessionsLastWeekArr = mySessions.filter(s => s.date >= prevWeekStart && s.date <= prevWeekEnd);
+    const sessionsThisMonthArr = mySessions.filter(s => s.date >= monthAgo);
+    const sessionsLastMonthArr = mySessions.filter(s => s.date >= twoMonthsAgo && s.date < monthAgo);
 
-    // Recent sessions for metric computation
-    const recentSessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? AND date >= ? ORDER BY date DESC').all(p.id, twoMonthsAgo);
+    const sessionsThisWeek = sessionsThisWeekArr.length;
+    const sessionsLastWeek = sessionsLastWeekArr.length;
+    const sessionsThisMonth = sessionsThisMonthArr.length;
+    const sessionsLastMonth = sessionsLastMonthArr.length;
 
-    // Compute shot/pass accuracy for this month vs last month
-    const thisMonthSessions = recentSessions.filter(s => s.date >= monthAgo);
-    const lastMonthSessions = recentSessions.filter(s => s.date >= twoMonthsAgo && s.date < monthAgo);
+    // Accuracy + RPE computed from in-memory slices
+    const shotAcc = computeAccuracy(sessionsThisMonthArr, 'shooting');
+    const shotAccPrev = computeAccuracy(sessionsLastMonthArr, 'shooting');
+    const passAcc = computeAccuracy(sessionsThisMonthArr, 'passing');
+    const passAccPrev = computeAccuracy(sessionsLastMonthArr, 'passing');
+    const rpeThisWeek = computeAvgRPE(sessionsThisWeekArr);
+    const rpeLastWeek = computeAvgRPE(sessionsLastWeekArr);
 
-    const shotAcc = computeAccuracy(thisMonthSessions, 'shooting');
-    const shotAccPrev = computeAccuracy(lastMonthSessions, 'shooting');
-    const passAcc = computeAccuracy(thisMonthSessions, 'passing');
-    const passAccPrev = computeAccuracy(lastMonthSessions, 'passing');
+    // Compliance from the batched assigned_plans
+    const myAssignedDates = assignedByPlayer.get(p.id) || [];
+    const assignedThisWeekDates = myAssignedDates.filter(d => d >= weekStartStr && d <= weekEndStr);
+    const assignedLastWeekDates = myAssignedDates.filter(d => d >= prevWeekStart && d <= prevWeekEnd);
 
-    // RPE this week vs last week
-    const rpeThisWeek = computeAvgRPE(recentSessions.filter(s => s.date >= weekStartStr && s.date <= weekEndStr));
-    const rpeLastWeek = computeAvgRPE(recentSessions.filter(s => s.date >= prevWeekStart && s.date <= prevWeekEnd));
+    // Session dates for compliance comparison — use the filtered in-memory arrays.
+    const sessionDatesThisWeek = new Set(sessionsThisWeekArr.map(s => s.date));
+    const sessionDatesLastWeek = new Set(sessionsLastWeekArr.map(s => s.date));
+    const completedThisWeek = assignedThisWeekDates.filter(d => sessionDatesThisWeek.has(d)).length;
+    const completedLastWeek = assignedLastWeekDates.filter(d => sessionDatesLastWeek.has(d)).length;
 
-    // Compliance
-    const assignedThisWeek = db.prepare('SELECT COUNT(*) as c FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?').get(p.id, weekStartStr, weekEndStr)?.c || 0;
-    const assignedDates = db.prepare('SELECT date FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?').all(p.id, weekStartStr, weekEndStr).map(r => r.date);
-    const completedThisWeek = assignedDates.length > 0
-      ? db.prepare(`SELECT COUNT(DISTINCT date) as c FROM sessions WHERE user_id = ? AND date IN (${assignedDates.map(() => '?').join(',')})`)
-          .get(p.id, ...assignedDates)?.c || 0
-      : 0;
+    const assignedThisWeek = assignedThisWeekDates.length;
+    const assignedLastWeek = assignedLastWeekDates.length;
     const compliancePct = assignedThisWeek > 0 ? Math.round((completedThisWeek / assignedThisWeek) * 100) : null;
-
-    // Prev week compliance
-    const assignedLastWeek = db.prepare('SELECT COUNT(*) as c FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?').get(p.id, prevWeekStart, prevWeekEnd)?.c || 0;
-    const assignedDatesPrev = db.prepare('SELECT date FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?').all(p.id, prevWeekStart, prevWeekEnd).map(r => r.date);
-    const completedLastWeek = assignedDatesPrev.length > 0
-      ? db.prepare(`SELECT COUNT(DISTINCT date) as c FROM sessions WHERE user_id = ? AND date IN (${assignedDatesPrev.map(() => '?').join(',')})`)
-          .get(p.id, ...assignedDatesPrev)?.c || 0
-      : 0;
     const compliancePctPrev = assignedLastWeek > 0 ? Math.round((completedLastWeek / assignedLastWeek) * 100) : null;
 
     // Pace label (simplified server-side)
