@@ -2,28 +2,75 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 
+// Adaptive polling intervals — chat activity pulses fast, idle chat polls slowly.
+const POLL_MIN_MS = 10_000;   // 10s when there's fresh activity
+const POLL_MAX_MS = 60_000;   // 60s when the chat has been quiet
+
 export function CoachChat({ coachId, coachName, label = 'Coach Chat' }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef(null);
+  const lastMessageCountRef = useRef(0);
+  const pollIntervalRef = useRef(POLL_MIN_MS);
 
   const fetchMessages = useCallback(async () => {
     if (!coachId) return;
     try {
       const res = await fetch(`/api/messages/${coachId}`);
-      if (res.ok) setMessages(await res.json());
+      if (res.ok) {
+        const newMessages = await res.json();
+        // Adaptive backoff: if we got new messages, reset to min interval.
+        // If no new messages, double the interval up to the max.
+        if (newMessages.length > lastMessageCountRef.current) {
+          pollIntervalRef.current = POLL_MIN_MS;
+        } else {
+          pollIntervalRef.current = Math.min(pollIntervalRef.current * 2, POLL_MAX_MS);
+        }
+        lastMessageCountRef.current = newMessages.length;
+        setMessages(newMessages);
+      }
     } catch { /* ignore */ }
     setLoading(false);
   }, [coachId]);
 
   useEffect(() => { fetchMessages(); }, [fetchMessages]);
 
-  // Poll for new messages every 5s
+  // Adaptive polling loop with tab visibility pause.
+  // Uses a recursive setTimeout so each tick reads the current backoff interval,
+  // and the Page Visibility API stops polls when the tab isn't visible.
   useEffect(() => {
     if (!coachId) return;
-    const interval = setInterval(fetchMessages, 5000);
-    return () => clearInterval(interval);
+    let timer = null;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (document.visibilityState === 'visible') {
+        await fetchMessages();
+      }
+      if (!cancelled) {
+        timer = setTimeout(tick, pollIntervalRef.current);
+      }
+    };
+
+    // Start after the initial interval so we don't double-fetch the first load.
+    timer = setTimeout(tick, pollIntervalRef.current);
+
+    // Reset backoff and fetch immediately when the tab becomes visible.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pollIntervalRef.current = POLL_MIN_MS;
+        fetchMessages();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [coachId, fetchMessages]);
 
   useEffect(() => {
@@ -42,6 +89,8 @@ export function CoachChat({ coachId, coachName, label = 'Coach Chat' }) {
         const msg = await res.json();
         setMessages(prev => [...prev, msg]);
         setInput('');
+        // Just sent a message — reset polling to fast so we catch a quick reply.
+        pollIntervalRef.current = POLL_MIN_MS;
       }
     } catch { /* ignore */ }
   };
