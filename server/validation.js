@@ -141,6 +141,50 @@ export const parentVisibilitySchema = z.object({
   showIdpGoals: z.boolean().optional(),
 }).strict();
 
+// ── Auth schemas ─────────────────────────────────────────────────────────────
+// Username rules match the inline checks in server/auth.js: 3–50 chars,
+// alphanumeric + underscore/hyphen. Password must contain at least one letter
+// and one digit (that check stays in validatePassword() in auth.js because it's
+// a richer check than regex alone).
+const usernameField = z
+  .string()
+  .min(3, 'Username must be 3–50 characters')
+  .max(50, 'Username must be 3–50 characters')
+  .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and hyphens');
+
+const roleField = z.enum(['player', 'coach', 'parent']).optional();
+
+// POST /auth/register — email is OPTIONAL to keep backward compat with
+// existing clients that don't send it. If present, it gets stored with
+// email_verified = 0 (typed, not verified).
+export const registerSchema = z.object({
+  username: usernameField,
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: roleField,
+  email: z.string().email('Invalid email').max(320).optional(),
+}).strict();
+
+// POST /auth/login — unchanged but now formalized.
+export const loginSchema = z.object({
+  username: z.string().min(1).max(100),
+  password: z.string().min(1).max(500),
+}).strict();
+
+// POST /auth/google/verify — client forwards the ID token from Google
+// Identity Services. No other fields needed on first touch.
+export const googleVerifySchema = z.object({
+  credential: z.string().min(10).max(4096),
+}).strict();
+
+// POST /auth/google/complete — called after onboarding to actually create
+// the user row. The pendingToken carries the verified google_id/email/name,
+// and the client provides the username picked during onboarding.
+export const googleCompleteSchema = z.object({
+  pendingToken: z.string().min(10).max(4096),
+  username: usernameField,
+  role: roleField,
+}).strict();
+
 // Middleware factory
 export function validate(schema) {
   return (req, res, next) => {

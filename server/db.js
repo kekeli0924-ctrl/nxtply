@@ -714,6 +714,26 @@ const migrations = [
         WHERE status IN ('pending', 'ready')`);
     } catch { /* ignore — may already exist or older SQLite may not support partial indexes */ }
   }},
+  { version: 25, up: (db) => {
+    // Sign in with Google: add email/google_id/display_name, plus an email_verified flag
+    // that distinguishes Google-verified emails (1) from typed-but-unverified password
+    // emails (0). Auto-linking a Google account to an existing row only fires when the
+    // target's email_verified = 1 — otherwise it's an account-takeover vector.
+    try { db.exec("ALTER TABLE users ADD COLUMN email TEXT"); } catch { /* exists */ }
+    try { db.exec("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0"); } catch { /* exists */ }
+    try { db.exec("ALTER TABLE users ADD COLUMN google_id TEXT"); } catch { /* exists */ }
+    try { db.exec("ALTER TABLE users ADD COLUMN display_name TEXT"); } catch { /* exists */ }
+    // Partial unique indexes: allow multiple NULLs (password-only users have no email),
+    // but enforce uniqueness once a value is present.
+    try {
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
+        ON users(email) WHERE email IS NOT NULL`);
+    } catch { /* ignore */ }
+    try {
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id
+        ON users(google_id) WHERE google_id IS NOT NULL`);
+    } catch { /* ignore */ }
+  }},
 ];
 
 function runMigrations(db) {
