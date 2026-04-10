@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
 import { getDb } from './db.js';
+import { logger } from './logger.js';
 
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required. Set it in your .env file.');
@@ -12,6 +14,24 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // allowing revocation of all existing tokens for a user.
 const TOKEN_EXPIRY = '1h';
 const REFRESH_EXPIRY = '7d';
+// Short-lived pending Google sign-in token. User has 2 minutes to finish onboarding
+// after the Google popup. 5 min was overkill — user is actively in front of the screen.
+const PENDING_GOOGLE_EXPIRY = '2m';
+// Sentinel stored in password_hash for Google-only accounts. bcryptjs short-circuits any
+// compare against a hash that isn't 60 chars long (verified in node_modules/bcryptjs/index.js),
+// so this can never match a user-supplied password — no brute-force vector.
+const GOOGLE_ONLY_SENTINEL = 'google-only';
+
+// Google Identity Services verifier. Null if GOOGLE_CLIENT_ID isn't configured —
+// the /google/verify route returns 503 in that case so the frontend can hide the button.
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+if (!GOOGLE_CLIENT_ID) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: GOOGLE_CLIENT_ID must be set in production. Add it to your .env file.');
+  }
+  logger.warn('GOOGLE_CLIENT_ID not set — Google sign-in will be disabled (dev mode).');
+}
 
 function signAccessToken(userId, role, tokenVersion) {
   return jwt.sign({ userId, role, tv: tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
@@ -19,6 +39,27 @@ function signAccessToken(userId, role, tokenVersion) {
 
 function signRefreshToken(userId, tokenVersion) {
   return jwt.sign({ userId, type: 'refresh', tv: tokenVersion ?? 0 }, JWT_SECRET, { expiresIn: REFRESH_EXPIRY });
+}
+
+// Pending Google sign-in token: carries the verified email/google_id/name across the
+// client's onboarding flow. Distinct `typ` claim so it can't be confused with an access
+// token — authMiddleware rejects any bearer token that has `typ === 'google_pending'`.
+function signPendingGoogleToken({ email, googleId, name }) {
+  return jwt.sign(
+    { typ: 'google_pending', email, gid: googleId, name: name || '' },
+    JWT_SECRET,
+    { expiresIn: PENDING_GOOGLE_EXPIRY }
+  );
+}
+
+function verifyPendingGoogleToken(token) {
+  const payload = jwt.verify(token, JWT_SECRET);
+  if (payload.typ !== 'google_pending') {
+    const err = new Error('Not a pending Google token');
+    err.code = 'INVALID_TOKEN';
+    throw err;
+  }
+  return payload;
 }
 
 // Verify the JWT signature AND check that its token_version matches the user's current one.
@@ -67,6 +108,12 @@ export function authMiddleware(req, res, next) {
   }
   try {
     const payload = verifyAndCheckRevocation(header.slice(7));
+    // Defense-in-depth: pending Google tokens must never be accepted as access tokens.
+    // They share JWT_SECRET but carry a distinct `typ` claim. If a bug ever leaks a
+    // pending token into an Authorization header, this rejects it hard.
+    if (payload.typ === 'google_pending') {
+      return res.status(401).json({ error: 'Invalid token type', code: 'INVALID_TOKEN' });
+    }
     req.userId = payload.userId;
     req.userRole = payload.role || 'player';
     next();
@@ -102,8 +149,12 @@ export function requirePlayer(req, res, next) {
 const authRouter = Router();
 
 // POST /api/auth/register
+// Accepts an optional `email` field. If provided, it gets stored with email_verified = 0
+// (typed, not proven). Any email conflict — password account OR Google account — returns
+// 409 so we can tell the user to log in instead. This is what prevents an attacker from
+// claiming a victim's future Google email by typing it into password signup.
 authRouter.post('/register', async (req, res) => {
-  const { username, password, role } = req.body;
+  const { username, password, role, email } = req.body;
   const userRole = ['coach', 'parent'].includes(role) ? role : 'player';
   if (!username || !password) return res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
   if (username.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters', code: 'USERNAME_SHORT' });
@@ -117,8 +168,22 @@ authRouter.post('/register', async (req, res) => {
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (existing) return res.status(409).json({ error: 'Username taken', code: 'USERNAME_TAKEN' });
 
+  // Normalized email: trim + lowercase so "Alice@Gmail.com" collides with "alice@gmail.com".
+  const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+  if (normalizedEmail) {
+    const emailConflict = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+    if (emailConflict) {
+      return res.status(409).json({
+        error: 'That email is already used. Log in instead.',
+        code: 'EMAIL_TAKEN',
+      });
+    }
+  }
+
   const hash = await bcrypt.hash(password, 12);
-  const result = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, hash, userRole);
+  const result = db.prepare(
+    'INSERT INTO users (username, password_hash, role, email, email_verified) VALUES (?, ?, ?, ?, 0)'
+  ).run(username, hash, userRole, normalizedEmail);
   const userId = result.lastInsertRowid;
   // New users start with token_version = 0 (DB default).
   const token = signAccessToken(userId, userRole, 0);
@@ -179,7 +244,13 @@ function extractAuth(req, res) {
     return null;
   }
   try {
-    return verifyAndCheckRevocation(header.slice(7));
+    const payload = verifyAndCheckRevocation(header.slice(7));
+    // Same pending-Google-token guard as authMiddleware.
+    if (payload.typ === 'google_pending') {
+      res.status(401).json({ error: 'Invalid token type', code: 'INVALID_TOKEN' });
+      return null;
+    }
+    return payload;
   } catch (err) {
     if (err.code === 'REVOKED') {
       res.status(401).json({ error: 'Session has been revoked. Please log in again.', code: 'REVOKED' });
@@ -255,6 +326,194 @@ authRouter.post('/logout-all', (req, res) => {
   const db = getDb();
   db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(payload.userId);
   res.json({ ok: true });
+});
+
+// ── Google Sign-In ───────────────────────────────────────────────────────────
+// POST /api/auth/google/verify
+// First-touch endpoint. Client sends the ID token (JWT credential) from Google
+// Identity Services. We verify it with Google's public keys, then take one of
+// three branches based on what's already in the DB:
+//
+//   Case A  — google_id match    → issue tokens, returning user
+//   Case B  — email match + safe → auto-link: set google_id on the existing row,
+//                                  bump token_version (invalidates any old sessions
+//                                  on that user), issue tokens, returning user
+//   Case C  — no match           → mint a short-lived pending token, do NOT create
+//                                  the user row yet. Client holds the pending token,
+//                                  walks through onboarding (username + role), then
+//                                  calls /google/complete to actually create the row.
+//
+// "Safe to link" means the existing row's email_verified = 1 (i.e. its email was
+// proven by a prior Google flow) OR the row is already Google-only (no password).
+// Linking to a row whose email_verified = 0 would be an account-takeover vector:
+// an attacker could type a victim's future Google email into password signup.
+authRouter.post('/google/verify', async (req, res) => {
+  if (!googleClient) {
+    return res.status(503).json({ error: 'Google sign-in not configured', code: 'GOOGLE_DISABLED' });
+  }
+
+  const { credential } = req.body || {};
+  if (typeof credential !== 'string' || credential.length === 0) {
+    return res.status(400).json({ error: 'Missing credential', code: 'MISSING_FIELDS' });
+  }
+
+  let ticket;
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
+  } catch (err) {
+    logger.warn('Google token verify failed', { message: err.message });
+    return res.status(401).json({ error: 'Invalid Google token', code: 'INVALID_GOOGLE_TOKEN' });
+  }
+
+  const payload = ticket.getPayload();
+  // Defensive re-checks on top of what the library enforces.
+  if (!payload || !payload.sub || !payload.email) {
+    return res.status(401).json({ error: 'Invalid Google payload', code: 'INVALID_GOOGLE_TOKEN' });
+  }
+  // Google can return email_verified as boolean true or string "true" — coerce.
+  const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+  if (!emailVerified) {
+    return res.status(401).json({ error: 'Email not verified by Google', code: 'EMAIL_NOT_VERIFIED' });
+  }
+
+  const googleId = payload.sub;
+  const email = String(payload.email).trim().toLowerCase();
+  const name = payload.name || '';
+
+  const db = getDb();
+
+  // Case A — google_id match: returning user, straight sign-in.
+  let user = db.prepare(
+    'SELECT id, role, token_version FROM users WHERE google_id = ?'
+  ).get(googleId);
+
+  if (user) {
+    const role = user.role || 'player';
+    const tv = user.token_version ?? 0;
+    return res.json({
+      token: signAccessToken(user.id, role, tv),
+      refreshToken: signRefreshToken(user.id, tv),
+      userId: user.id,
+      role,
+      isNewUser: false,
+    });
+  }
+
+  // Case B — email match. Only auto-link if it's SAFE to do so.
+  user = db.prepare(
+    'SELECT id, role, token_version, google_id, email_verified, password_hash FROM users WHERE email = ?'
+  ).get(email);
+
+  if (user) {
+    if (user.google_id) {
+      // Email is already linked to a different google_id. Shouldn't normally happen
+      // (Google would have matched Case A), but defend against an edge where the same
+      // email points at a stale google_id.
+      logger.warn('Email matches user but google_id differs', { userId: user.id });
+      return res.status(409).json({
+        error: 'This email is already linked to a different Google account',
+        code: 'GOOGLE_MISMATCH',
+      });
+    }
+
+    const isGoogleOnly = user.password_hash === GOOGLE_ONLY_SENTINEL;
+    const isVerified = user.email_verified === 1;
+    if (!isVerified && !isGoogleOnly) {
+      // Password user with an unverified typed email — NOT safe to auto-link.
+      return res.status(409).json({
+        error: 'That email is already registered. Log in with your password, then link Google from Settings.',
+        code: 'EMAIL_TAKEN_UNVERIFIED',
+      });
+    }
+
+    // Safe to link. Bump token_version so any pre-link sessions on this user get
+    // invalidated — treat linking a new auth method as a security-sensitive change,
+    // same category as password change.
+    const newVersion = (user.token_version ?? 0) + 1;
+    db.prepare(`
+      UPDATE users
+      SET google_id = ?, email_verified = 1, token_version = ?,
+          display_name = COALESCE(display_name, ?)
+      WHERE id = ?
+    `).run(googleId, newVersion, name || null, user.id);
+
+    const role = user.role || 'player';
+    return res.json({
+      token: signAccessToken(user.id, role, newVersion),
+      refreshToken: signRefreshToken(user.id, newVersion),
+      userId: user.id,
+      role,
+      isNewUser: false,
+      linked: true,
+    });
+  }
+
+  // Case C — no match. Mint pending token, defer user creation until onboarding finishes.
+  const pendingToken = signPendingGoogleToken({ email, googleId, name });
+  return res.json({
+    isNewUser: true,
+    pendingToken,
+    email,
+    name,
+  });
+});
+
+// POST /api/auth/google/complete
+// Called after the client walks through onboarding (role + username step). The
+// pendingToken carries the already-verified email/google_id/name so we don't have
+// to re-hit Google. We check for username collisions, then insert the user row.
+authRouter.post('/google/complete', async (req, res) => {
+  const { pendingToken, username, role: requestedRole } = req.body || {};
+
+  if (!pendingToken || !username) {
+    return res.status(400).json({ error: 'Missing fields', code: 'MISSING_FIELDS' });
+  }
+  if (username.length < 3 || username.length > 50 || !/^[a-zA-Z0-9_-]+$/.test(username)) {
+    return res.status(400).json({
+      error: 'Username must be 3–50 chars, letters/numbers/underscores/hyphens only',
+      code: 'USERNAME_INVALID',
+    });
+  }
+
+  let payload;
+  try {
+    payload = verifyPendingGoogleToken(pendingToken);
+  } catch {
+    return res.status(401).json({
+      error: 'Google sign-in expired. Please start again.',
+      code: 'PENDING_EXPIRED',
+    });
+  }
+
+  const db = getDb();
+
+  // Race-check: did another flow grab these keys while the user was in onboarding?
+  const existingByGoogle = db.prepare('SELECT id FROM users WHERE google_id = ?').get(payload.gid);
+  if (existingByGoogle) {
+    return res.status(409).json({ error: 'Account already exists', code: 'GOOGLE_EXISTS' });
+  }
+  const existingByUsername = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (existingByUsername) {
+    return res.status(409).json({ error: 'Username taken', code: 'USERNAME_TAKEN' });
+  }
+  const existingByEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(payload.email);
+  if (existingByEmail) {
+    return res.status(409).json({ error: 'Email already registered', code: 'EMAIL_TAKEN' });
+  }
+
+  const userRole = ['coach', 'parent'].includes(requestedRole) ? requestedRole : 'player';
+  const result = db.prepare(`
+    INSERT INTO users (username, password_hash, role, email, email_verified, google_id, display_name)
+    VALUES (?, ?, ?, ?, 1, ?, ?)
+  `).run(username, GOOGLE_ONLY_SENTINEL, userRole, payload.email, payload.gid, payload.name || null);
+
+  const userId = result.lastInsertRowid;
+  const token = signAccessToken(userId, userRole, 0);
+  const refreshToken = signRefreshToken(userId, 0);
+  return res.status(201).json({ token, refreshToken, userId, role: userRole });
 });
 
 export { authRouter };

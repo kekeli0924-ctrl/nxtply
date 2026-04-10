@@ -50,15 +50,20 @@ if (isProd) {
 const app = express();
 
 // ── Security headers + CSP ──────────────────────────────
+// Google Identity Services origins are allowed for the Sign in with Google flow.
+// scriptSrc lets us load accounts.google.com/gsi/client; frameSrc lets the popup render;
+// connectSrc lets GSI fetch its own resources. If these aren't added, GSI silently breaks
+// in production even though dev (CSP disabled) works fine.
 app.use(helmet({
   contentSecurityPolicy: isProd ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://accounts.google.com/gsi/client"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/style"],
+      imgSrc: ["'self'", "data:", "blob:", "https://*.googleusercontent.com"],
+      connectSrc: ["'self'", "https://accounts.google.com/gsi/"],
       fontSrc: ["'self'"],
+      frameSrc: ["https://accounts.google.com/gsi/"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
@@ -182,6 +187,11 @@ if (isProd) {
     if (header?.startsWith('Bearer ')) {
       try {
         const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
+        // Same defense-in-depth as authMiddleware: pending Google tokens must never
+        // be accepted as access tokens, even in dev.
+        if (payload.typ === 'google_pending') {
+          return res.status(401).json({ error: 'Invalid token type', code: 'INVALID_TOKEN' });
+        }
         // Check revocation via token_version, matching prod behavior.
         const db = getDb();
         const user = db.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId);
