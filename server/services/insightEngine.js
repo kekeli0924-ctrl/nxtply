@@ -9,8 +9,9 @@ export function generateSessionInsights(sessionId) {
   const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
   if (!session) return [];
 
-  // Scope all queries to this user's data
-  const userId = session.user_id || 1;
+  // Scope all queries to this user's data — reject if session has no user_id
+  if (!session.user_id) return [];
+  const userId = session.user_id;
   const allSessions = db.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY date DESC').all(userId);
   const insights = [];
 

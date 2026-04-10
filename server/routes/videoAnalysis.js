@@ -321,8 +321,14 @@ const tusServer = new TusServer({
 
       const uploadPath = path.join(TUS_DIR, upload.id);
 
-      // Get userId from tus metadata or request
-      const tusUserId = metadata.userId ? parseInt(metadata.userId, 10) : (req.userId || 1);
+      // Use authenticated req.userId only — never trust client-supplied metadata.userId.
+      // Reject the upload if no authenticated user is present.
+      if (!req.userId) {
+        logger.error('Tus upload rejected: no authenticated user', { uploadId: upload.id });
+        res.statusCode = 401;
+        return res;
+      }
+      const tusUserId = req.userId;
 
       db.prepare(`INSERT INTO video_analyses (id, video_path, original_name, file_size, status, drill_bookmarks, recording_source, user_id)
         VALUES (?, ?, ?, ?, 'uploaded', ?, 'session', ?)`).run(

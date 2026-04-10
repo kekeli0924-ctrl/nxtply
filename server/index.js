@@ -160,8 +160,7 @@ if (isProd) {
     const header = req.headers.authorization;
     if (header?.startsWith('Bearer ')) {
       try {
-        const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-random-secret';
-        const payload = jwt.verify(header.slice(7), JWT_SECRET);
+        const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
         req.userId = payload.userId;
         req.userRole = payload.role || 'player';
         return next();

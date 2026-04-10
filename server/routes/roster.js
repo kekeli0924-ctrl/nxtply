@@ -69,7 +69,7 @@ router.get('/', requireCoach, (req, res) => {
     SELECT u.id, u.username, s.player_name
     FROM coach_players cp
     JOIN users u ON u.id = cp.player_id
-    LEFT JOIN settings s ON s.id = 1
+    LEFT JOIN settings s ON s.user_id = u.id
     WHERE cp.coach_id = ?
     ORDER BY cp.joined_at DESC
   `).all(req.userId);
@@ -87,14 +87,14 @@ router.get('/', requireCoach, (req, res) => {
   const weekEndStr = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const result = players.map(p => {
-    const sessionsLast7d = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE date >= ?').get(weekAgo)?.c || 0;
-    const sessionsLast30d = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE date >= ?').get(monthAgo)?.c || 0;
-    const lastSession = db.prepare('SELECT date FROM sessions ORDER BY date DESC LIMIT 1').get();
+    const sessionsLast7d = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ? AND date >= ?').get(p.id, weekAgo)?.c || 0;
+    const sessionsLast30d = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ? AND date >= ?').get(p.id, monthAgo)?.c || 0;
+    const lastSession = db.prepare('SELECT date FROM sessions WHERE user_id = ? ORDER BY date DESC LIMIT 1').get(p.id);
     const assignedThisWeek = db.prepare('SELECT COUNT(*) as c FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?').get(p.id, weekStartStr, weekEndStr)?.c || 0;
     const assignedDates = db.prepare('SELECT date FROM assigned_plans WHERE player_id = ? AND date >= ? AND date <= ?').all(p.id, weekStartStr, weekEndStr).map(r => r.date);
     const completedThisWeek = assignedDates.length > 0
-      ? db.prepare(`SELECT COUNT(DISTINCT date) as c FROM sessions WHERE date IN (${assignedDates.map(() => '?').join(',')})`)
-          .get(...assignedDates)?.c || 0
+      ? db.prepare(`SELECT COUNT(DISTINCT date) as c FROM sessions WHERE user_id = ? AND date IN (${assignedDates.map(() => '?').join(',')})`)
+          .get(p.id, ...assignedDates)?.c || 0
       : 0;
 
     return {

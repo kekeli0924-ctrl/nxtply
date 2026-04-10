@@ -44,15 +44,63 @@ function renderMarkdown(content) {
   });
 }
 
+// Safe inline markdown renderer — returns React elements, never uses dangerouslySetInnerHTML.
+// Supported: **bold**, [text](url), "Confidence: N/5".
 function renderInline(text) {
-  // Bold
-  text = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-  // Links
-  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-accent underline">$1</a>');
-  // Confidence inline
-  text = text.replace(/Confidence[:\s]*(\d)\/5/gi, 'Confidence: <span class="inline-flex items-center ml-1 px-1 py-0 rounded text-[9px] font-bold bg-accent/10 text-accent">$1/5</span>');
+  if (typeof text !== 'string' || text.length === 0) return null;
 
-  return <span dangerouslySetInnerHTML={{ __html: text }} />;
+  // Combined tokenizer regex. Order matters — longest/most-specific first.
+  // Group 1: bold  |  Group 2/3: link text/url  |  Group 4: confidence digit
+  const pattern = /\*\*(.+?)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|Confidence[:\s]*(\d)\/5/g;
+
+  const out = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = pattern.exec(text)) !== null) {
+    // Push any plain text before this match
+    if (match.index > lastIndex) {
+      out.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[1] !== undefined) {
+      // Bold
+      out.push(<b key={key++}>{match[1]}</b>);
+    } else if (match[2] !== undefined && match[3] !== undefined) {
+      // Link — href comes from a validated regex and only accepts http/https
+      out.push(
+        <a
+          key={key++}
+          href={match[3]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent underline"
+        >
+          {match[2]}
+        </a>
+      );
+    } else if (match[4] !== undefined) {
+      // Confidence badge
+      out.push(
+        <span key={key++}>
+          Confidence:{' '}
+          <span className="inline-flex items-center ml-1 px-1 py-0 rounded text-[9px] font-bold bg-accent/10 text-accent">
+            {match[4]}/5
+          </span>
+        </span>
+      );
+    }
+
+    lastIndex = pattern.lastIndex;
+  }
+
+  // Push any trailing plain text
+  if (lastIndex < text.length) {
+    out.push(text.slice(lastIndex));
+  }
+
+  return <>{out}</>;
 }
 
 export function ScoutingReportDetail({ reportId, onBack, onStartPlan }) {
