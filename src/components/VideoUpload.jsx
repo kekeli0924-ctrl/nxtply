@@ -23,6 +23,7 @@ export function VideoUpload({ onAnalysisComplete, onQuickSave }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [cancelled, setCancelled] = useState(false);
+  const [compressionWarning, setCompressionWarning] = useState(null);
   const fileInputRef = useRef(null);
   const pollingRef = useRef(null);
   const abortRef = useRef(false);
@@ -213,7 +214,7 @@ export function VideoUpload({ onAnalysisComplete, onQuickSave }) {
     // Check browser support
     const support = checkVideoProcessingSupport();
     if (!support.supported) {
-      // Fallback: upload raw
+      setCompressionWarning('Your browser doesn\'t support client-side video compression. Uploading the full-size file instead — it will take longer.');
       return uploadRaw();
     }
 
@@ -222,12 +223,14 @@ export function VideoUpload({ onAnalysisComplete, onQuickSave }) {
       const processed = await processVideoForAnalysis(file, setPipelineProgress);
       if (abortRef.current) return;
       setProcessedResult(processed);
+      setCompressionWarning(null);
       await uploadProcessed(processed);
     } catch (err) {
       if (abortRef.current) return;
       console.warn('Client-side processing failed, falling back to raw upload:', err);
       setError(null);
       setPipelineProgress(null);
+      setCompressionWarning('Video compression failed, so we\'re uploading the full-size file. This will take longer but still works.');
       await uploadRaw();
     } finally {
       terminateFFmpeg();
@@ -242,7 +245,7 @@ export function VideoUpload({ onAnalysisComplete, onQuickSave }) {
     if (pollingRef.current) clearInterval(pollingRef.current);
     setFile(null); setVideoId(null); setStatus(null); setResult(null);
     setError(null); setProcessing(false); setPipelineProgress(null);
-    setProcessedResult(null); setCancelled(false);
+    setProcessedResult(null); setCancelled(false); setCompressionWarning(null);
   };
 
   // ── Not configured ──────
@@ -418,6 +421,14 @@ export function VideoUpload({ onAnalysisComplete, onQuickSave }) {
             {/* Error */}
             {error && (
               <div className="bg-red-50 text-red-600 text-xs rounded-lg p-3 mb-3">{error}</div>
+            )}
+
+            {/* Compression fallback warning */}
+            {compressionWarning && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-lg p-3 mb-3 flex items-start gap-2">
+                <span className="shrink-0">⚠️</span>
+                <span>{compressionWarning}</span>
+              </div>
             )}
 
             {/* Action buttons */}
