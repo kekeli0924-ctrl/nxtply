@@ -1,6 +1,21 @@
 import { useState } from 'react';
 import { Button } from './ui/Button';
 import { setTokens } from '../hooks/useApi';
+import { GoogleSignInButton } from './GoogleSignInButton';
+
+/**
+ * Small visual helper shared by login and signup forms. Renders a horizontal
+ * "or" divider between the Google button and the username/password form.
+ */
+function OrDivider() {
+  return (
+    <div className="flex items-center gap-2 text-[11px] text-gray-400 my-4">
+      <div className="flex-1 h-px bg-gray-200" />
+      <span>or</span>
+      <div className="flex-1 h-px bg-gray-200" />
+    </div>
+  );
+}
 
 export function AuthScreen({ onAuthSuccess, onNewUser }) {
   const [username, setUsername] = useState('');
@@ -45,6 +60,20 @@ export function AuthScreen({ onAuthSuccess, onNewUser }) {
         <div className="text-center mb-8">
           <h1 className="text-4xl text-accent tracking-tight font-logo italic">Composed</h1>
         </div>
+
+        {/* Google sign-in (hidden if VITE_GOOGLE_CLIENT_ID not set) */}
+        <GoogleSignInButton
+          onSuccess={(data) => {
+            setTokens(data.token, data.refreshToken);
+            onAuthSuccess({ userId: data.userId, username: '', role: data.role || 'player' });
+          }}
+          onNewUser={(data) => {
+            // First-time Google user — parent uses `data.pendingToken` to route into onboarding.
+            onNewUser?.(data);
+          }}
+          onError={(msg) => setError(msg)}
+        />
+        <OrDivider />
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
@@ -92,8 +121,12 @@ export function AuthScreen({ onAuthSuccess, onNewUser }) {
 
 /**
  * Signup form shown at the END of onboarding (after role/name/settings are collected).
+ *
+ * onGoogleNewUser is optional — if the user clicks Continue with Google here we
+ * need to back out of the in-progress password-signup flow and hand off to the
+ * Google flow instead (the parent re-routes through onboarding with googleFlow set).
  */
-export function SignupForm({ onSignupSuccess, onBack }) {
+export function SignupForm({ onSignupSuccess, onBack, onGoogleNewUser }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -148,6 +181,17 @@ export function SignupForm({ onSignupSuccess, onBack }) {
         <p className="text-sm font-semibold text-gray-900">Create your account</p>
         <p className="text-xs text-gray-400 mt-1">This saves your training data securely.</p>
       </div>
+
+      {/* Google sign-in option — gives the user a one-tap out from the password form */}
+      <GoogleSignInButton
+        onSuccess={(data) => {
+          setTokens(data.token, data.refreshToken);
+          onSignupSuccess({ userId: data.userId, username: '', role: data.role || 'player' });
+        }}
+        onNewUser={(data) => onGoogleNewUser?.(data)}
+        onError={(msg) => setError(msg)}
+      />
+      <OrDivider />
 
       <form onSubmit={handleSignup} className="space-y-4">
         <div>

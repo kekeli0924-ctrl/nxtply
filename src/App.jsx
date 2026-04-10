@@ -60,6 +60,11 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authFlow, setAuthFlow] = useState('check'); // 'check' | 'login' | 'onboarding' | 'signup' | 'done'
   const [onboardingData, setOnboardingData] = useState(null); // Data collected during onboarding (role, name, etc.)
+  // When a user signs in with Google for the first time, /google/verify returns
+  // { pendingToken, email, name, isNewUser: true }. We stash that here and route
+  // them through onboarding (with an extra "pick a username" step), then exchange
+  // the pendingToken for real tokens at /google/complete. null if not in Google flow.
+  const [googleFlow, setGoogleFlow] = useState(null);
 
   // Check for existing token on mount
   useEffect(() => {
@@ -124,8 +129,18 @@ function App() {
   if (authFlow === 'login') {
     return (
       <AuthScreen
-        onAuthSuccess={(user) => { setAuthUser(user); setAuthFlow('done'); }}
-        onNewUser={() => setAuthFlow('onboarding')}
+        onAuthSuccess={(user) => { setGoogleFlow(null); setAuthUser(user); setAuthFlow('done'); }}
+        onNewUser={(googleData) => {
+          // `googleData` is present only for Google sign-in first-touch — it carries
+          // { pendingToken, email, name }. For the "I'm a New User" button click
+          // it'll be undefined, so we fall back to the classic password flow.
+          if (googleData?.pendingToken) {
+            setGoogleFlow(googleData);
+          } else {
+            setGoogleFlow(null);
+          }
+          setAuthFlow('onboarding');
+        }}
       />
     );
   }
@@ -136,7 +151,52 @@ function App() {
       <div className="min-h-screen bg-gray-50">
         <OnboardingFlow
           settings={{ distanceUnit: 'km' }}
-          onComplete={(data) => {
+          googleFlow={googleFlow}
+          onComplete={async (data) => {
+            if (googleFlow) {
+              // Google flow: exchange pendingToken + username + role for real tokens,
+              // then save settings exactly like the password path does below.
+              try {
+                const res = await fetch('/api/auth/google/complete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    pendingToken: googleFlow.pendingToken,
+                    username: data.username,
+                    role: data.role || 'player',
+                  }),
+                });
+                const result = await res.json();
+                if (!res.ok) {
+                  // eslint-disable-next-line no-alert
+                  alert(result.error || 'Google sign-up failed. Please try again.');
+                  setGoogleFlow(null);
+                  setAuthFlow('login');
+                  return;
+                }
+                // Persist tokens and save onboarding settings
+                const { setTokens } = await import('./hooks/useApi');
+                setTokens(result.token, result.refreshToken);
+                const { role: _role, username: _username, ...settingsData } = data;
+                try {
+                  await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${result.token}` },
+                    body: JSON.stringify(settingsData),
+                  });
+                } catch { /* non-fatal */ }
+                setAuthUser({ userId: result.userId, username: data.username, role: result.role || 'player' });
+                setGoogleFlow(null);
+                setAuthFlow('done');
+              } catch {
+                // eslint-disable-next-line no-alert
+                alert('Connection failed. Please try again.');
+                setGoogleFlow(null);
+                setAuthFlow('login');
+              }
+              return;
+            }
+            // Classic password flow: just stash the data and move to signup form
             setOnboardingData(data);
             setAuthFlow('signup');
           }}
@@ -145,7 +205,8 @@ function App() {
     );
   }
 
-  // Step 3: Signup form (after onboarding, creates the account)
+  // Step 3: Signup form (after onboarding, creates the account) — password flow only.
+  // Google users skip this entirely because /google/complete already created their row.
   if (authFlow === 'signup') {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -180,6 +241,13 @@ function App() {
             setAuthFlow('done');
           }}
           onBack={() => setAuthFlow('onboarding')}
+          onGoogleNewUser={(googleData) => {
+            // User bailed out of password signup to use Google instead.
+            if (googleData?.pendingToken) {
+              setGoogleFlow(googleData);
+              setAuthFlow('onboarding');
+            }
+          }}
         />
       </div>
     );

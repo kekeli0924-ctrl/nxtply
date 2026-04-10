@@ -46,11 +46,19 @@ function TagButton({ selected, onClick, children }) {
   );
 }
 
-export function OnboardingFlow({ settings, onComplete }) {
+export function OnboardingFlow({ settings, onComplete, googleFlow }) {
+  // When googleFlow is set, the user is signing up via Google. They didn't get to
+  // type a username on the auth screen, so we inject a dedicated "Pick a username"
+  // step and include the picked value in onComplete(). Pre-seed playerName from
+  // the Google profile so they don't have to retype it.
+  const isGoogleFlow = !!googleFlow;
+
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     role: 'player',
-    playerName: settings.playerName || '',
+    playerName: googleFlow?.name || settings.playerName || '',
+    username: '',
+    usernameError: '',
     position: 'General',
     ageGroup: '',
     skillLevel: '',
@@ -68,7 +76,27 @@ export function OnboardingFlow({ settings, onComplete }) {
   const isCoach = data.role === 'coach';
   const isParent = data.role === 'parent';
 
+  // Mirror the server's username rules so the user sees errors immediately
+  // instead of after a round-trip to /google/complete.
+  const USERNAME_REGEX = /^[a-zA-Z0-9_-]+$/;
+  const validateUsername = (u) => {
+    if (!u) return 'Pick a username';
+    if (u.length < 3) return 'At least 3 characters';
+    if (u.length > 50) return 'Too long (max 50)';
+    if (!USERNAME_REGEX.test(u)) return 'Letters, numbers, underscores, hyphens only';
+    return '';
+  };
+
   const canAdvance = () => {
+    // Google flow injects a username step at index 1. When present, it blocks
+    // Next until the username validates. All other indices shift down by one.
+    if (isGoogleFlow) {
+      if (step === 0) return true; // role
+      if (step === 1) return !validateUsername(data.username); // username
+      if (step === 2) return true; // name (optional)
+      if (!isCoach && step === 3) return data.ageGroup && data.skillLevel;
+      return true;
+    }
     if (step === 0) return true; // role selection always valid
     if (step === 1) return true; // name is optional
     if (!isCoach && step === 2) return data.ageGroup && data.skillLevel;
@@ -78,6 +106,9 @@ export function OnboardingFlow({ settings, onComplete }) {
   const handleFinish = () => {
     onComplete({
       role: data.role,
+      // Google flow passes username through so the parent can call /google/complete.
+      // Password flow ignores this field — its username is typed in SignupForm.
+      username: isGoogleFlow ? data.username.trim() : undefined,
       playerName: data.playerName,
       ageGroup: (isCoach || isParent) ? '' : data.ageGroup,
       skillLevel: (isCoach || isParent) ? '' : data.skillLevel,
@@ -425,15 +456,58 @@ export function OnboardingFlow({ settings, onComplete }) {
     ),
   ];
 
+  // Google-only step: pick a username. Injected at position 1 in activeSteps
+  // when the user is signing up via Google. We use a live error so typing an
+  // invalid character shows feedback immediately instead of waiting for Next.
+  const googleUsernameStep = () => {
+    const liveError = data.username ? validateUsername(data.username) : '';
+    return (
+      <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
+        <div className="text-center mb-6">
+          <h2 className="text-3xl text-gray-900 tracking-tight font-logo italic">stay composed</h2>
+          <p className="text-xs text-gray-400 mt-2">Signed in as {googleFlow?.email || 'your Google account'}</p>
+        </div>
+
+        <Card>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Pick a username</label>
+          <input
+            type="text"
+            autoFocus
+            value={data.username}
+            onChange={e => update('username', e.target.value)}
+            placeholder="e.g. lukemessi"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck="false"
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+          <p className="text-[10px] text-gray-400 mt-2">
+            3–50 characters. Letters, numbers, underscores, and hyphens only.
+          </p>
+          {liveError && (
+            <p className="text-[11px] text-red-500 mt-2">{liveError}</p>
+          )}
+        </Card>
+      </div>
+    );
+  };
+
   // Coach skips player-specific steps (age group, identity, weekly goal)
   // Parent skips player-specific steps, gets connect-to-child step instead
   // steps[5] is the parent connect step — exclude it for player and coach
   const playerSteps = steps.filter((_, i) => i !== 5); // all except parent connect
-  const activeSteps = isCoach
+  let activeSteps = isCoach
     ? [steps[0], steps[1], steps[steps.length - 1]]  // role, name, finish
     : isParent
     ? [steps[0], steps[5], steps[steps.length - 1]]  // role, connect, finish (skip name/position)
     : playerSteps;
+
+  // Inject the Google "pick a username" step at position 1 (after role select)
+  // for Google sign-up flows. Works for all three roles.
+  if (isGoogleFlow) {
+    activeSteps = [activeSteps[0], googleUsernameStep, ...activeSteps.slice(1)];
+  }
+
   const TOTAL_STEPS = activeSteps.length;
 
   return (
