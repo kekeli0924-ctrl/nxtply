@@ -161,9 +161,15 @@ if (isProd) {
     if (header?.startsWith('Bearer ')) {
       try {
         const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET);
-        req.userId = payload.userId;
-        req.userRole = payload.role || 'player';
-        return next();
+        // Check revocation via token_version, matching prod behavior.
+        const db = getDb();
+        const user = db.prepare('SELECT token_version FROM users WHERE id = ?').get(payload.userId);
+        if (user && (payload.tv ?? 0) === (user.token_version ?? 0)) {
+          req.userId = payload.userId;
+          req.userRole = payload.role || 'player';
+          return next();
+        }
+        // Revoked or user not found — fall through to dev defaults
       } catch { /* token invalid — fall through to dev defaults */ }
     }
 

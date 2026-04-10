@@ -700,6 +700,10 @@ const migrations = [
   { version: 22, up: (db) => {
     try { db.exec("ALTER TABLE settings ADD COLUMN player_identity TEXT DEFAULT ''"); } catch { /* exists */ }
   }},
+  { version: 23, up: (db) => {
+    // Token version column enables revocation: bumping it invalidates all existing JWTs.
+    try { db.exec("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"); } catch { /* exists */ }
+  }},
 ];
 
 function runMigrations(db) {
