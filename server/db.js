@@ -704,6 +704,16 @@ const migrations = [
     // Token version column enables revocation: bumping it invalidates all existing JWTs.
     try { db.exec("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"); } catch { /* exists */ }
   }},
+  { version: 24, up: (db) => {
+    // Prevent duplicate scouting reports for the same opponent/date.
+    // Partial index: only enforces uniqueness for pending/ready reports — failed reports
+    // are allowed to coexist so the user can retry without having to delete old ones.
+    try {
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_scouting_unique_active
+        ON scouting_reports (user_id, club_name, COALESCE(match_date, ''))
+        WHERE status IN ('pending', 'ready')`);
+    } catch { /* ignore — may already exist or older SQLite may not support partial indexes */ }
+  }},
 ];
 
 function runMigrations(db) {

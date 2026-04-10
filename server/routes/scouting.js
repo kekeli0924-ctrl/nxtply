@@ -25,12 +25,32 @@ router.post('/request', enforceDailyQuota('scouting-request', 3, 'Daily scouting
   const db = getDb();
   const reportId = crypto.randomUUID();
 
-  // Create DB record
-  db.prepare(`INSERT INTO scouting_reports (id, user_id, club_name, level, age_group, gender, location, match_date, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`).run(
-    reportId, req.userId, clubName.trim(), level.trim(), ageGroup.trim(), gender.trim(),
-    location?.trim() || null, matchDate || null
-  );
+  // Create DB record — partial unique index on (user_id, club_name, match_date) prevents
+  // duplicate active reports for the same opponent. Return a 409 with the existing reportId
+  // so the frontend can navigate the user to the in-flight report instead of creating a copy.
+  try {
+    db.prepare(`INSERT INTO scouting_reports (id, user_id, club_name, level, age_group, gender, location, match_date, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`).run(
+      reportId, req.userId, clubName.trim(), level.trim(), ageGroup.trim(), gender.trim(),
+      location?.trim() || null, matchDate || null
+    );
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || String(err.message).includes('UNIQUE constraint')) {
+      const existing = db.prepare(
+        `SELECT id, status FROM scouting_reports
+         WHERE user_id = ? AND club_name = ? AND COALESCE(match_date, '') = COALESCE(?, '')
+         AND status IN ('pending', 'ready')
+         LIMIT 1`
+      ).get(req.userId, clubName.trim(), matchDate || null);
+      return res.status(409).json({
+        error: `A scouting report for ${clubName} on that date is already in progress or ready.`,
+        code: 'DUPLICATE_REPORT',
+        reportId: existing?.id,
+        status: existing?.status,
+      });
+    }
+    throw err;
+  }
 
   // Call Manus API
   try {
@@ -197,7 +217,8 @@ router.post('/generate-game-plan/:id', enforceDailyQuota('game-plan', 10, 'Daily
 
     // Fetch drills for warm-up session
     const drills = db.prepare('SELECT * FROM drills').all();
-    const warmupSession = buildWarmupSession(crossReference, drills, report.club_name);
+    // Seed with report.id so the same report always produces the same warmup session.
+    const warmupSession = buildWarmupSession(crossReference, drills, report.club_name, report.id);
 
     // AI-enhanced brief (optional — works without Gemini key)
     let aiBrief = null;

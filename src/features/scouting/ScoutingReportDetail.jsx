@@ -383,9 +383,15 @@ function StatPill({ label, value }) {
 
 // ── Quick Brief — compact player-friendly view ──
 
+// Escape regex special chars so section names like "Strengths & Weaknesses" don't break the pattern.
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractSection(content, sectionName) {
   // Matches "## Strengths", "## 5. Strengths", "## 5. Strengths & Weaknesses", etc.
-  const regex = new RegExp(`##\\s*(?:\\d+\\.\\s*)?${sectionName}[\\s\\S]*?(?=##|$)`, 'i');
+  const escaped = escapeRegex(sectionName);
+  const regex = new RegExp(`##\\s*(?:\\d+\\.\\s*)?${escaped}[\\s\\S]*?(?=##|$)`, 'i');
   const match = content.match(regex);
   if (!match) return null;
 

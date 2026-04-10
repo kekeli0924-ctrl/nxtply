@@ -229,11 +229,40 @@ export function computeRulesBasedBrief(reportContent, playerStats) {
 // ── Warm-Up Session Builder ──────────────────
 
 /**
+ * Tiny deterministic PRNG seeded from a string. Mulberry32 + FNV-1a string hash.
+ * Same seed → same sequence, so warmups for the same report regenerate identically.
+ */
+function seededRandom(seed) {
+  // FNV-1a hash to turn the string into a 32-bit integer
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  let state = h >>> 0;
+  // Mulberry32
+  return function () {
+    state = (state + 0x6D2B79F5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
  * Build a 15-20 min warm-up session from the drill library.
  * Returns a plan object compatible with DailyPlanCard/LiveSessionMode.
+ *
+ * @param {object} crossReference — output of computeRulesBasedBrief
+ * @param {array}  drills          — full drill library
+ * @param {string} opponentName    — used as the warmup focus label
+ * @param {string} [seed]          — deterministic seed; defaults to opponentName so the same
+ *                                    opponent generates the same warmup across calls (idempotent).
  */
-export function buildWarmupSession(crossReference, drills, opponentName) {
+export function buildWarmupSession(crossReference, drills, opponentName, seed) {
   const { drillNeeds } = crossReference;
+  const rand = seededRandom(seed || opponentName || 'default');
   const timeline = [];
   let elapsed = 0;
 
@@ -258,16 +287,17 @@ export function buildWarmupSession(crossReference, drills, opponentName) {
       return sub.includes(cat) || d.name.toLowerCase().includes(cat);
     });
     if (matching.length > 0 && selectedDrills.length < 3) {
-      // Pick a drill that's short (≤10 min)
+      // Pick a drill that's short (≤10 min), deterministically
       const short = matching.filter(d => (d.durationMinutes || d.duration_minutes || 10) <= 10);
-      const pick = short.length > 0 ? short[Math.floor(Math.random() * short.length)] : matching[0];
+      const pool = short.length > 0 ? short : matching;
+      const pick = pool[Math.floor(rand() * pool.length)];
       if (!selectedDrills.find(d => d.name === pick.name)) {
         selectedDrills.push(pick);
       }
     }
   }
 
-  // If we still need more drills, add generic ones
+  // If we still need more drills, add generic ones deterministically
   if (selectedDrills.length < 2) {
     const generic = drills.filter(d =>
       (d.difficulty === 'beginner' || d.difficulty === 'intermediate') &&
@@ -275,7 +305,8 @@ export function buildWarmupSession(crossReference, drills, opponentName) {
       !selectedDrills.find(s => s.name === d.name)
     );
     while (selectedDrills.length < 2 && generic.length > 0) {
-      selectedDrills.push(generic.splice(Math.floor(Math.random() * generic.length), 1)[0]);
+      const idx = Math.floor(rand() * generic.length);
+      selectedDrills.push(generic.splice(idx, 1)[0]);
     }
   }
 
@@ -341,6 +372,34 @@ Keep it concise, direct, and actionable. Write for a youth player (ages 12-18). 
 
 Return ONLY the brief as clean text (no JSON, no markdown headers).`;
 
+// Wrap a promise with a timeout. Rejects with a timeout error if the promise doesn't settle in time.
+function withTimeout(promise, timeoutMs, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => {
+        const err = new Error(`${label || 'Operation'} timed out after ${timeoutMs / 1000}s`);
+        err.code = 'GEMINI_TIMEOUT';
+        reject(err);
+      }, timeoutMs)
+    ),
+  ]);
+}
+
+// Errors we consider retry-eligible: rate limits and transient 5xx.
+function isRetryableGeminiError(err) {
+  const msg = String(err?.message || err || '');
+  return (
+    msg.includes('RESOURCE_EXHAUSTED') ||
+    msg.includes('429') ||
+    msg.includes('500') ||
+    msg.includes('503') ||
+    msg.includes('UNAVAILABLE') ||
+    msg.includes('DEADLINE_EXCEEDED') ||
+    err?.code === 'GEMINI_TIMEOUT'
+  );
+}
+
 export async function generateAIGamePlan(reportContent, playerStats, crossReference) {
   if (!process.env.GEMINI_API_KEY) return null;
 
@@ -355,28 +414,38 @@ export async function generateAIGamePlan(reportContent, playerStats, crossRefere
   prompt = prompt.replace('{{sessionsThisWeek}}', playerStats.sessionsThisWeek ?? '—');
   prompt = prompt.replace('{{flags}}', flags);
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const models = ['gemini-2.5-pro', 'gemini-2.5-flash'];
-    let response = null;
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const models = ['gemini-2.5-pro', 'gemini-2.5-flash'];
+  const TIMEOUT_MS = 30 * 1000;
 
-    for (const model of models) {
-      try {
-        response = await ai.models.generateContent({
+  // Try each model in order. Retry-eligible errors fall through to the next model;
+  // non-retryable errors are logged and abort the whole operation (return null).
+  for (const model of models) {
+    try {
+      const response = await withTimeout(
+        ai.models.generateContent({
           model,
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        });
-        break;
-      } catch (err) {
-        if (String(err).includes('RESOURCE_EXHAUSTED') || String(err).includes('429')) continue;
-        throw err;
+        }),
+        TIMEOUT_MS,
+        `Gemini ${model}`
+      );
+      const text = response?.text?.trim();
+      if (text) return text;
+      // Empty response — treat as failure and try the next model.
+      logger.warn('Gemini returned empty response', { model });
+    } catch (err) {
+      if (isRetryableGeminiError(err)) {
+        logger.warn('Gemini retryable error — trying next model', { model, error: err.message });
+        continue;
       }
+      // Non-retryable (auth error, bad request, etc.) — give up.
+      logger.error('Gemini non-retryable error', { model, error: err.message });
+      return null;
     }
-
-    if (!response) return null;
-    return response.text?.trim() || null;
-  } catch (err) {
-    logger.error('Game plan AI generation failed', { error: err.message });
-    return null;
   }
+
+  // All models failed or returned empty.
+  logger.error('Game plan AI generation failed — all models exhausted');
+  return null;
 }
