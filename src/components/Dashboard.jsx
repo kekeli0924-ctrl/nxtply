@@ -5,7 +5,6 @@ import { DailyPlanCard } from './DailyPlanCard';
 // GettingStartedChecklist removed — replaced by single "Ready to train?" CTA
 import { WelcomeBack } from './WelcomeBack';
 import { DateBrowser } from './DateBrowser';
-import { SocialFeed } from './SocialFeed';
 import {
   getStreak, getAverageStat, getShotPercentage, getPassPercentage,
   formatDate, formatPercentage, computeTrainingScore, computeTrainingScoreWithDeltas,
@@ -621,8 +620,9 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         </>
       )}
 
-      {/* Social Feed */}
-      <SocialFeed />
+      {/* Join a Coach + Activity Feed moved to the Community tab exclusively —
+          they used to be duplicated here, cluttering Home with widgets that
+          have nothing to do with today's training. */}
 
     </div>
   );
