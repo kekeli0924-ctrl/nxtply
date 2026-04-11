@@ -96,18 +96,22 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
     return '';
   };
 
+  // True if the player has selected at least one position. Coaches and parents
+  // don't have a position, so this check is skipped for them.
+  const hasPosition = () => isCoach || isParent || (Array.isArray(data.position) && data.position.length > 0);
+
   const canAdvance = () => {
     // Google flow injects a username step at index 1. When present, it blocks
     // Next until the username validates. All other indices shift down by one.
     if (isGoogleFlow) {
       if (step === 0) return true; // role
       if (step === 1) return !validateUsername(data.username); // username
-      if (step === 2) return true; // name (optional)
+      if (step === 2) return hasPosition(); // name (optional) + position (required)
       if (!isCoach && step === 3) return data.ageGroup && data.skillLevel;
       return true;
     }
     if (step === 0) return true; // role selection always valid
-    if (step === 1) return true; // name is optional
+    if (step === 1) return hasPosition(); // name is optional, position is required
     if (!isCoach && step === 2) return data.ageGroup && data.skillLevel;
     return true;
   };
@@ -214,7 +218,8 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
           {!isCoach && (
             <>
               <label className="block text-xs font-medium text-gray-500 mb-2">
-                Your position <span className="text-gray-300">(pick one or more)</span>
+                Your position <span className="text-red-500">*</span>{' '}
+                <span className="text-gray-300">(pick one or more)</span>
               </label>
               <div className="flex flex-wrap gap-2">
                 {POSITIONS.map(pos => {
@@ -243,6 +248,11 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
                   );
                 })}
               </div>
+              {(!Array.isArray(data.position) || data.position.length === 0) && (
+                <p className="text-[11px] text-amber-600 mt-2">
+                  Select at least one position to continue.
+                </p>
+              )}
             </>
           )}
         </Card>
