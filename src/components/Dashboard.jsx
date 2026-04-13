@@ -13,6 +13,7 @@ import {
 } from '../utils/stats';
 import { computePace } from '../utils/pace';
 import { getPaceLabel, getIdentityTip, getIdentity, hasAnyIdentity } from '../utils/identity';
+import { getDashboardNudge } from '../utils/nudge';
 
 const BREAKDOWN_LABELS = {
   consistency: 'Consistency',
@@ -490,6 +491,24 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         playerIdentity={settings.playerIdentity}
         onViewMetric={onViewMetric}
       />
+
+      {/* ── Contextual nudge — one line, below hero, above everything else ── */}
+      {(() => {
+        const nudge = getDashboardNudge({
+          sessions,
+          streakCount: streak,
+          assignedPlans,
+        });
+        if (!nudge) return null;
+        const toneClass = nudge.tone === 'positive' ? 'text-amber-600'
+          : nudge.tone === 'warning' ? 'text-gray-500'
+          : 'text-accent'; // info
+        return (
+          <p className={`text-xs leading-relaxed px-1 ${toneClass}`}>
+            {nudge.text}
+          </p>
+        );
+      })()}
 
       {/* Welcome Back (3+ days inactive) — shows right after hero if triggered */}
       <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
