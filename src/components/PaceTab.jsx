@@ -20,7 +20,7 @@ const METRIC_CONFIG = {
   load: { name: 'Training Load', unit: '', description: 'Volume × intensity (duration × RPE)' },
 };
 
-function PaceHeroCircle({ pace, playerIdentity }) {
+function PaceHeroCircle({ pace, playerIdentity, onTap }) {
   const label = pace?.overall?.label || 'steady';
   const velocity = pace?.overall?.velocityPct;
   const color = PACE_COLORS[label] || PACE_COLORS.steady;
@@ -28,8 +28,11 @@ function PaceHeroCircle({ pace, playerIdentity }) {
   // Glow intensity based on velocity
   const glowSize = Math.min(Math.abs(velocity || 0) * 2, 60);
 
+  const Wrapper = onTap ? 'button' : 'div';
+  const wrapperProps = onTap ? { onClick: onTap, type: 'button', 'aria-label': 'See why your Pace moved' } : {};
+
   return (
-    <div className="flex flex-col items-center py-6">
+    <Wrapper {...wrapperProps} className="flex flex-col items-center py-6 w-full">
       {/* Glowing circle */}
       <div className="relative">
         <div
@@ -69,8 +72,11 @@ function PaceHeroCircle({ pace, playerIdentity }) {
             {getPaceNarrative(playerIdentity, label)}
           </p>
         )}
+        {onTap && (
+          <p className="text-[10px] text-accent font-medium mt-2">Tap to see why →</p>
+        )}
       </div>
-    </div>
+    </Wrapper>
   );
 }
 
@@ -382,11 +388,17 @@ export function PaceTab({ sessions = [], onViewMetric, ageGroup, skillLevel, pla
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
-      {/* Header */}
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{getPaceLabel(playerIdentity)}</p>
+      {/* Header — also tappable to reach audit view */}
+      {onViewMetric ? (
+        <button type="button" onClick={() => onViewMetric('pace-audit')} className="w-full">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{getPaceLabel(playerIdentity)}</p>
+        </button>
+      ) : (
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{getPaceLabel(playerIdentity)}</p>
+      )}
 
-      {/* Hero Circle */}
-      <PaceHeroCircle pace={pace} playerIdentity={playerIdentity} />
+      {/* Hero Circle — tappable when onViewMetric is available */}
+      <PaceHeroCircle pace={pace} playerIdentity={playerIdentity} onTap={onViewMetric ? () => onViewMetric('pace-audit') : undefined} />
 
       {/* Recommendation */}
       {pace.recommendation?.text && (

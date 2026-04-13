@@ -5,6 +5,7 @@ import { IntroFlow } from './components/IntroFlow';
 import { ScoutingPage } from './features/scouting/ScoutingPage';
 import { MetricTrendView } from './components/MetricTrendView';
 import { PaceDetailView } from './components/PaceDetailView';
+import { PaceAuditView } from './components/PaceAuditView';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionHistory } from './components/SessionHistory';
@@ -980,7 +981,7 @@ function AppMain({ authUser, onLogout }) {
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} onBack={() => setActiveTab(previousTab)} />
         </div>
         <div className={activeTab === 'pace' ? '' : 'hidden'}>
-          <PaceTab sessions={sessions} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} playerIdentity={settings.playerIdentity} position={Array.isArray(settings.position) ? settings.position[0] : settings.position} />
+          <PaceTab sessions={sessions} onViewMetric={handleViewMetric} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} playerIdentity={settings.playerIdentity} position={Array.isArray(settings.position) ? settings.position[0] : settings.position} />
         </div>
         <div className={activeTab === 'plan' ? '' : 'hidden'}>
           <PlanWeekView
@@ -1007,9 +1008,19 @@ function AppMain({ authUser, onLogout }) {
             sessions={sessions}
             skillLevel={settings.skillLevel}
             onBack={() => { setSelectedMetric(null); setActiveTab(previousTab || 'dashboard'); }}
+            onViewAudit={() => setSelectedMetric('pace-audit')}
           />
         )}
-        {activeTab === 'metric-detail' && selectedMetric && selectedMetric !== 'pace' && (
+        {activeTab === 'metric-detail' && selectedMetric === 'pace-audit' && (
+          <PaceAuditView
+            sessions={sessions}
+            position={(Array.isArray(settings.position) && settings.position[0]) || 'General'}
+            playerIdentity={settings.playerIdentity}
+            onBack={() => { setSelectedMetric(null); setActiveTab(previousTab || 'dashboard'); }}
+            onViewSession={handleViewSession}
+          />
+        )}
+        {activeTab === 'metric-detail' && selectedMetric && selectedMetric !== 'pace' && selectedMetric !== 'pace-audit' && (
           <div>
             <MetricTrendView
               title={({

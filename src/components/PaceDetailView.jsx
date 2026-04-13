@@ -25,7 +25,7 @@ const METRIC_UNITS = {
   load: '',
 };
 
-export function PaceDetailView({ sessions, skillLevel, onBack }) {
+export function PaceDetailView({ sessions, skillLevel, onBack, onViewAudit }) {
   const pace = useMemo(() => computePace(sessions, 4), [sessions]);
 
   // Compute weekly pace history (last 8 weeks)
@@ -88,6 +88,11 @@ export function PaceDetailView({ sessions, skillLevel, onBack }) {
       <Card>
         <div className="text-center space-y-2">
           <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Your Improvement Pace</p>
+          {onViewAudit && (
+            <button onClick={onViewAudit} className="text-[10px] text-accent font-medium hover:underline">
+              See why this moved →
+            </button>
+          )}
           <div className="flex items-center justify-center gap-3">
             <div
               className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center"

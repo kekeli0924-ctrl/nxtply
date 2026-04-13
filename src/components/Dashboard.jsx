@@ -106,7 +106,7 @@ function InsightsCard({ insights }) {
 
 const PACE_COLORS = { accelerating: '#16A34A', steady: '#D97706', stalling: '#DC2626' };
 
-function WeeklyPaceCard({ sessions, idpGoals = [], onNavigate, playerIdentity, position }) {
+function WeeklyPaceCard({ sessions, idpGoals = [], onNavigate, onViewMetric, playerIdentity, position }) {
   const pace = useMemo(() => computePace(sessions, 4, position), [sessions, position]);
   if (!pace) return null;
 
@@ -168,7 +168,17 @@ function WeeklyPaceCard({ sessions, idpGoals = [], onNavigate, playerIdentity, p
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold" style={{ color }}>
+          {/* Velocity % is tappable → goes directly to the Pace Audit view.
+              stopPropagation prevents the card's own onClick (→ PaceTab) from firing. */}
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onViewMetric?.('pace-audit'); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onViewMetric?.('pace-audit'); } }}
+            className="text-sm font-bold underline decoration-dotted underline-offset-2 cursor-pointer"
+            style={{ color }}
+            aria-label="See why your Pace moved"
+          >
             {overall.velocityPct > 0 ? '+' : ''}{overall.velocityPct}%
           </span>
           <span className="text-xs font-semibold text-gray-700">
@@ -416,7 +426,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
           settings.position is now a multi-select array; pace weighting still takes a
           single string, so pass the primary (first) position. Blending across
           positions is a v2 improvement. */}
-      <WeeklyPaceCard sessions={sessions} idpGoals={idpGoals} onNavigate={onNavigate} playerIdentity={settings.playerIdentity} position={(Array.isArray(settings.position) && settings.position[0]) || 'General'} />
+      <WeeklyPaceCard sessions={sessions} idpGoals={idpGoals} onNavigate={onNavigate} onViewMetric={onViewMetric} playerIdentity={settings.playerIdentity} position={(Array.isArray(settings.position) && settings.position[0]) || 'General'} />
 
       {/* Welcome Back (3+ days inactive) */}
       <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
