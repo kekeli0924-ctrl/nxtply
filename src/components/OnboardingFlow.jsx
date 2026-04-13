@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { getIdentity, hasAnyIdentity } from '../utils/identity';
 
 // Canonical player positions. Ordered front-to-back so the layout reads naturally
 // left-to-right. "General" was removed — players who don't pick anything simply
@@ -100,20 +101,28 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
   // don't have a position, so this check is skipped for them.
   const hasPosition = () => isCoach || isParent || (Array.isArray(data.position) && data.position.length > 0);
 
+  // True if the player has selected at least one identity (preset OR custom text).
+  const hasIdentity = () => isCoach || isParent
+    || (Array.isArray(data.playerIdentity) && data.playerIdentity.length > 0)
+    || (data.customIdentity && data.customIdentity.trim().length > 0);
+
   const canAdvance = () => {
     // Google flow injects a username step at index 1. When present, it blocks
     // Next until the username validates. All other indices shift down by one.
+    // The preview step (inserted after identity) is always passable.
     if (isGoogleFlow) {
       if (step === 0) return true; // role
       if (step === 1) return !validateUsername(data.username); // username
       if (step === 2) return hasPosition(); // name (optional) + position (required)
       if (!isCoach && step === 3) return data.ageGroup && data.skillLevel;
-      return true;
+      if (!isCoach && step === 4) return hasIdentity(); // identity — required
+      return true; // preview, weekly goal, equipment, finish — all passable
     }
     if (step === 0) return true; // role selection always valid
     if (step === 1) return hasPosition(); // name is optional, position is required
     if (!isCoach && step === 2) return data.ageGroup && data.skillLevel;
-    return true;
+    if (!isCoach && step === 3) return hasIdentity(); // identity — required
+    return true; // preview, weekly goal, equipment, finish — all passable
   };
 
   const handleFinish = () => {
@@ -295,7 +304,7 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
     () => (
       <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
         <div className="text-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900">What do you want to be<br />known for on the pitch?</h2>
+          <h2 className="text-xl font-bold text-gray-900">What do you want to be<br />known for on the pitch? <span className="text-red-500">*</span></h2>
           <p className="text-xs text-gray-400 mt-2">
             Pick one or more. This shapes your training, your goals, and your story.
           </p>
@@ -346,6 +355,13 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
+
+          {/* Amber hint — same pattern as position required hint */}
+          {!hasIdentity() && (
+            <p className="text-[11px] text-amber-600 mt-2">
+              Select at least one identity to continue.
+            </p>
+          )}
         </div>
       </div>
     ),
@@ -553,15 +569,103 @@ export function OnboardingFlow({ settings, onComplete, googleFlow }) {
     );
   };
 
+  // ── Pace Preview step — shows after identity selection ──────────────────
+  // Renders a visually identical copy of the Dashboard Pace hero card from
+  // Step 3, populated with the user's just-selected identity and position but
+  // with clearly-labeled placeholder numbers. Does not call computePace or
+  // touch any real data. The "see why" link is present but non-functional
+  // (shows a tooltip note instead of routing to the audit view).
+  const PREVIEW_PACE_COLORS = {
+    accelerating: '#16A34A',
+  };
+
+  const pacePreviewStep = () => {
+    // Determine identity label from whatever the user just selected
+    const mergedIdentity = [
+      ...(Array.isArray(data.playerIdentity) ? data.playerIdentity : []),
+      ...(data.customIdentity && data.customIdentity.trim() ? [data.customIdentity.trim()] : []),
+    ];
+    const identityConfig = getIdentity(mergedIdentity);
+    const identityLabel = identityConfig?.label || null;
+    const positionLabel = Array.isArray(data.position) && data.position.length > 0
+      ? data.position[0]
+      : 'your position';
+
+    return (
+      <div style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
+        <div className="text-center mb-5">
+          <h2 className="text-xl font-bold text-gray-900">Here's what your<br />Dashboard will look like</h2>
+          <p className="text-xs text-gray-400 mt-2">
+            This is personalized to you — a {positionLabel}{identityLabel ? ` who's known for being a ${identityLabel}` : ''}.
+          </p>
+        </div>
+
+        {/* Preview hero card — matches Step 3 PaceHeroCard visually */}
+        <div className="bg-surface rounded-2xl border border-gray-100 shadow-card overflow-hidden relative">
+          {/* Preview badge */}
+          <div className="absolute top-3 right-3 bg-gray-100 text-gray-500 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+            Preview
+          </div>
+
+          <div className="px-5 pt-5 pb-4">
+            <p className="text-xs text-gray-400 font-medium mb-1">
+              {identityLabel ? `Your ${identityLabel} Pace` : 'Your Pace'}
+            </p>
+            <div className="flex items-baseline gap-2.5 mb-1">
+              <span className="text-3xl font-bold" style={{ color: PREVIEW_PACE_COLORS.accelerating }}>
+                +4.2%
+              </span>
+              <span
+                className="text-sm font-bold uppercase tracking-wide"
+                style={{ color: PREVIEW_PACE_COLORS.accelerating }}
+              >
+                Accelerating
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed italic">
+              Example — your real numbers appear once you start training.
+            </p>
+          </div>
+
+          <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Training Score</span>
+              <span className="text-sm text-gray-300 italic">—</span>
+            </div>
+            <span className="text-xs text-gray-400 italic">
+              See why ↗
+            </span>
+          </div>
+        </div>
+
+        {/* One-sentence pedagogical explanation */}
+        <p className="text-xs text-gray-400 text-center mt-4 leading-relaxed px-4">
+          Your Pace updates every time you train. It's weighted by what matters most for a {positionLabel}.
+        </p>
+      </div>
+    );
+  };
+
   // Coach skips player-specific steps (age group, identity, weekly goal)
   // Parent skips player-specific steps, gets connect-to-child step instead
   // steps[5] is the parent connect step — exclude it for player and coach
   const playerSteps = steps.filter((_, i) => i !== 5); // all except parent connect
+
+  // For players, inject the preview step right after identity (steps[3])
+  // and before weekly goal + equipment (steps[4]).
+  // playerSteps order is: [role, name, age, identity, weekly, finish]
+  // After injection:      [role, name, age, identity, PREVIEW, weekly, finish]
+  const playerStepsWithPreview = [
+    ...playerSteps.slice(0, 4),  // role, name, age, identity
+    pacePreviewStep,              // NEW: preview
+    ...playerSteps.slice(4),      // weekly+equipment, finish
+  ];
+
   let activeSteps = isCoach
     ? [steps[0], steps[1], steps[steps.length - 1]]  // role, name, finish
     : isParent
     ? [steps[0], steps[5], steps[steps.length - 1]]  // role, connect, finish (skip name/position)
-    : playerSteps;
+    : playerStepsWithPreview;
 
   // Inject the Google "pick a username" step at position 1 (after role select)
   // for Google sign-up flows. Works for all three roles.
