@@ -8,6 +8,8 @@ import { PaceDetailView } from './components/PaceDetailView';
 import { PaceAuditView } from './components/PaceAuditView';
 import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
+import { SessionModeChoice } from './components/SessionModeChoice';
+import { QuickSessionForm } from './components/QuickSessionForm';
 import { SessionHistory } from './components/SessionHistory';
 import { DrillBreakdown } from './components/DrillBreakdown';
 import { TrainingCalendar } from './components/TrainingCalendar';
@@ -734,6 +736,13 @@ function AppMain({ authUser, onLogout, pendingFirstSession, onFirstSessionConsum
     }, 100);
   }, []);
 
+  // ── Start training flow: single CTA → mode selection → chosen path ────
+  const [sessionModePlan, setSessionModePlan] = useState(null); // plan data from DailyPlanCard
+  const handleStartTraining = useCallback((plan) => {
+    setSessionModePlan(plan || null);
+    setActiveTab('session-mode');
+  }, []);
+
   // Metric detail view
   const [selectedMetric, setSelectedMetric] = useState(null);
   const handleViewMetric = useCallback((metricId) => {
@@ -1010,9 +1019,30 @@ function AppMain({ authUser, onLogout, pendingFirstSession, onFirstSessionConsum
           {userRole === 'coach' ? (
             <CoachSquadDashboard onSelectPlayer={(player) => { setSelectedCoachPlayer(player); navigateToTab('roster'); }} />
           ) : (
-            <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} onViewMetric={handleViewMetric} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} scoutingReports={scoutingReports} />
+            <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} onStartTraining={handleStartTraining} onViewMetric={handleViewMetric} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} scoutingReports={scoutingReports} />
           )}
         </div>
+        {/* Session mode selection — the hallway between "Start training" and the chosen path */}
+        {activeTab === 'session-mode' && (
+          <SessionModeChoice
+            sessions={sessions}
+            onQuickLog={() => setActiveTab('quick-log')}
+            onVideoAnalysis={() => { handleUploadVideo(); }}
+            onLiveSession={() => { if (sessionModePlan) handleStartPlan(sessionModePlan); else handleStartPlan({ drills: [], timeline: [], targetDuration: 30, focus: 'Training' }); }}
+            onCancel={() => setActiveTab('dashboard')}
+          />
+        )}
+        {/* Quick session form — the 90-second two-screen path */}
+        {activeTab === 'quick-log' && (
+          <QuickSessionForm
+            onSave={handleSaveSession}
+            onCancel={() => setActiveTab('session-mode')}
+            onExpandToFull={(data) => { handleStartManual(data); }}
+            prefillPlan={sessionModePlan}
+            customDrills={customDrills}
+            sessions={sessions}
+          />
+        )}
         <div className={activeTab === 'log' ? '' : 'hidden'}>
           <SessionLogger onSave={handleSaveSession} onQuickSaveVideo={handleQuickSaveFromVideo} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
         </div>

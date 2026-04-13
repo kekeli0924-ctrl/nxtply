@@ -409,7 +409,7 @@ function MatchDayCard({ scoutingReports = [], onNavigate, onStartPlan }) {
   );
 }
 
-export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, onViewMetric, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram, scoutingReports = [] }) {
+export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals = [], weeklyGoal = 3, ageGroup, skillLevel, onOpenSettings, onNavigateToLog, onStartPlan, onStartManual, onUploadVideo, onStartTraining, onViewMetric, assignedPlans = [], trainingPlans = [], settings = {}, myCoach, onNavigate, onDismissGettingStarted, activeProgram, scoutingReports = [] }) {
   const insights = useMemo(() => generateInsights(sessions, [], personalRecords), [sessions, personalRecords]);
   // Pace moved to its own tab
 
@@ -514,7 +514,7 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
       <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
 
       {/* ── 2. TODAY'S TRAINING ───────────────────────────────────── */}
-      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} position={(Array.isArray(settings.position) && settings.position[0]) || 'General'} playerIdentity={settings.playerIdentity} />
+      <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} onStartTraining={onStartTraining} assignedPlans={assignedPlans} activeProgram={activeProgram} position={(Array.isArray(settings.position) && settings.position[0]) || 'General'} playerIdentity={settings.playerIdentity} />
 
       {/* ── 3. THIS WEEK SUMMARY ──────────────────────────────────── */}
       <WeeklyReport sessions={sessions} matches={[]} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />

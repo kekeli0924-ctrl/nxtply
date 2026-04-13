@@ -4,7 +4,7 @@ import { Button } from './ui/Button';
 import { generateDailyPlan } from '../utils/dailyPlan';
 import { getDrillDetail } from '../constants/drills';
 
-export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, onUploadVideo, assignedPlans = [], activeProgram, position = 'General', playerIdentity = '' }) {
+export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, onUploadVideo, onStartTraining, assignedPlans = [], activeProgram, position = 'General', playerIdentity = '' }) {
   const today = new Date().toISOString().split('T')[0];
 
   // If player has an active program, show the program session
@@ -147,39 +147,12 @@ export function DailyPlanCard({ sessions, idpGoals, onStartPlan, onStartManual, 
         {/* Expandable Timeline */}
         <TimelineToggle timeline={plan.timeline} />
 
-        {/* CTA — Video-first */}
+        {/* Single primary CTA — opens mode-selection screen */}
         <button
-          onClick={() => onStartPlan && onStartPlan(plan)}
+          onClick={() => onStartTraining ? onStartTraining(plan) : (onStartManual && onStartManual(plan))}
           className="w-full py-3 rounded-xl font-semibold text-sm btn-warm btn-bounce transition-all"
         >
-          Start & Record
-        </button>
-        <div className="flex items-center justify-center gap-3 mt-2">
-          <button
-            onClick={() => onUploadVideo && onUploadVideo()}
-            className="text-xs text-accent hover:underline"
-          >
-            Upload a Video
-          </button>
-          <span className="text-gray-200">|</span>
-          <button
-            onClick={() => {
-              // Skip camera setup — start without recording
-              if (onStartPlan) {
-                window.__SKIP_CAMERA__ = true;
-                onStartPlan(plan);
-              }
-            }}
-            className="text-xs text-gray-400 hover:text-gray-600"
-          >
-            Start without Recording
-          </button>
-        </div>
-        <button
-          onClick={() => onStartManual && onStartManual(plan)}
-          className="w-full text-center text-[10px] text-gray-300 hover:text-gray-500 mt-2"
-        >
-          Log manually
+          Start training
         </button>
       </div>
     </Card>
