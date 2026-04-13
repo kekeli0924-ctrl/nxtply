@@ -16,6 +16,7 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { CoachRoster } from './components/CoachRoster';
 import { CoachPlanAssign } from './components/CoachPlanAssign';
 import { CoachOverview } from './components/CoachOverview';
+import { CoachSquadDashboard } from './components/CoachSquadDashboard';
 import { CoachPlayerDetail } from './components/CoachPlayerDetail';
 import { SocialFeed } from './components/SocialFeed';
 import { CoachChat } from './components/CoachChat';
@@ -50,6 +51,7 @@ const PLAYER_TABS = [
 ];
 
 const COACH_TABS = [
+  { id: 'dashboard', label: 'Home', icon: DashboardIcon },
   { id: 'roster', label: 'Roster', icon: RosterIcon },
   { id: 'assign', label: 'Assign', icon: CalendarIcon },
   { id: 'overview', label: 'Overview', icon: DashboardIcon },
@@ -972,7 +974,13 @@ function AppMain({ authUser, onLogout }) {
         ) : (
         <>
         <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
-          <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} onViewMetric={handleViewMetric} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} scoutingReports={scoutingReports} />
+          {/* Coach role → Squad Pulse as their Dashboard landing screen.
+              Players → the Step 3 Pace-hero Dashboard. */}
+          {userRole === 'coach' ? (
+            <CoachSquadDashboard onSelectPlayer={(player) => { setSelectedCoachPlayer(player); navigateToTab('roster'); }} />
+          ) : (
+            <Dashboard sessions={sessions} personalRecords={personalRecords} onViewSession={handleViewSession} idpGoals={idpGoals} weeklyGoal={settings.weeklyGoal ?? 3} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} onOpenSettings={() => navigateToTab('profile')} onNavigateToLog={() => setActiveTab('log')} onStartPlan={handleStartPlan} onStartManual={handleStartManual} onUploadVideo={handleUploadVideo} onViewMetric={handleViewMetric} assignedPlans={assignedPlans} trainingPlans={trainingPlans} settings={settings} myCoach={myCoach} onNavigate={navigateToTab} onDismissGettingStarted={() => setSettings(prev => ({ ...prev, gettingStartedComplete: 1 }))} activeProgram={activeProgram} scoutingReports={scoutingReports} />
+          )}
         </div>
         <div className={activeTab === 'log' ? '' : 'hidden'}>
           <SessionLogger onSave={handleSaveSession} onQuickSaveVideo={handleQuickSaveFromVideo} editSession={editSession} customDrills={customDrills} onAddCustomDrill={handleAddCustomDrill} distanceUnit={settings.distanceUnit} templates={templates} setTemplates={setTemplates} idpGoals={idpGoals} sessions={sessions} />
