@@ -14,6 +14,7 @@ import {
 import { computePace } from '../utils/pace';
 import { getPaceLabel, getIdentityTip, getIdentity, hasAnyIdentity } from '../utils/identity';
 import { getDashboardNudge } from '../utils/nudge';
+import { TeamRankCard } from './TeamRankCard';
 
 const BREAKDOWN_LABELS = {
   consistency: 'Consistency',
@@ -715,6 +716,9 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
           )}
         </>
       )}
+
+      {/* ── TEAM RANK — roster leaderboard (only for players with a coach) ── */}
+      <TeamRankCard onTap={() => onNavigate?.('team-leaderboard')} />
 
     </div>
   );

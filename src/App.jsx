@@ -10,6 +10,7 @@ import { Dashboard } from './components/Dashboard';
 import { SessionLogger } from './components/SessionLogger';
 import { SessionModeChoice } from './components/SessionModeChoice';
 import { QuickSessionForm } from './components/QuickSessionForm';
+import { TeamLeaderboard } from './components/TeamLeaderboard';
 import { SessionHistory } from './components/SessionHistory';
 import { DrillBreakdown } from './components/DrillBreakdown';
 import { TrainingCalendar } from './components/TrainingCalendar';
@@ -1049,6 +1050,9 @@ function AppMain({ authUser, onLogout, pendingFirstSession, onFirstSessionConsum
         <div className={activeTab === 'history' ? '' : 'hidden'}>
           <SessionHistory sessions={sessions} customDrills={customDrills} onEdit={handleEditSession} onDelete={handleDeleteSession} onView={handleViewSession} onBack={() => setActiveTab(previousTab)} />
         </div>
+        {activeTab === 'team-leaderboard' && (
+          <TeamLeaderboard onBack={() => setActiveTab(previousTab || 'dashboard')} />
+        )}
         <div className={activeTab === 'pace' ? '' : 'hidden'}>
           <PaceTab sessions={sessions} onViewMetric={handleViewMetric} ageGroup={settings.ageGroup} skillLevel={settings.skillLevel} playerIdentity={settings.playerIdentity} position={Array.isArray(settings.position) ? settings.position[0] : settings.position} idpGoals={idpGoals} parentVisibility={parentVisibility} settings={settings} />
         </div>

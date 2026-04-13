@@ -31,6 +31,7 @@ import programsRouter from './routes/programs.js';
 import aiChatRouter from './routes/aiChat.js';
 import parentRouter from './routes/parent.js';
 import scoutingRouter from './routes/scouting.js';
+import leaderboardRouter from './routes/leaderboard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -239,6 +240,7 @@ app.use('/api/programs', programsRouter);
 app.use('/api/ai', aiChatRouter);
 app.use('/api/parent', parentRouter);
 app.use('/api/scouting', scoutingRouter);
+app.use('/api/leaderboard', leaderboardRouter);
 
 // ── API 404 ─────────────────────────────────────────────
 app.use('/api', (req, res) => {
