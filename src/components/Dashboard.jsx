@@ -23,6 +23,114 @@ const BREAKDOWN_LABELS = {
   mental: 'Mental',
 };
 
+const PACE_COLORS = {
+  accelerating: '#16A34A',
+  steady: '#D97706',
+  stalling: '#DC2626',
+};
+
+// ── Pace Hero Card ─────────────────────────────────────────────────────────
+// The first thing the player sees. Large, full-width, visually dominant.
+// Shows: identity-aware headline + velocity %, training score with delta,
+// and a prominent "see why" link to the Pace Audit View.
+function PaceHeroCard({ pace, trainingScore, playerIdentity, onViewMetric }) {
+  // Determine headline parts
+  const identityLabel = hasAnyIdentity(playerIdentity) && getIdentity(playerIdentity)?.label
+    ? getIdentity(playerIdentity).label
+    : null;
+  const label = pace?.overall?.label || 'steady';
+  const velocity = pace?.overall?.velocityPct;
+  const color = PACE_COLORS[label] || PACE_COLORS.steady;
+
+  // Training score display
+  const score = trainingScore?.score;
+  const scoreDelta = trainingScore?.delta;
+
+  // No pace data yet (< 5 sessions)
+  const hasPace = pace != null && velocity != null;
+
+  return (
+    <div
+      className="bg-surface rounded-2xl border border-gray-100 shadow-card overflow-hidden"
+      style={{ animation: 'fadeSlideUp 0.3s ease-out' }}
+    >
+      {/* Top section: Pace headline */}
+      <div className="px-5 pt-5 pb-4">
+        {hasPace ? (
+          <>
+            {/* Identity-aware headline */}
+            <p className="text-xs text-gray-400 font-medium mb-1">
+              {identityLabel ? `Your ${identityLabel} Pace` : 'Your Pace'}
+            </p>
+            <div className="flex items-baseline gap-2.5 mb-1">
+              <span className="text-3xl font-bold" style={{ color }}>
+                {velocity > 0 ? '+' : ''}{velocity}%
+              </span>
+              <span
+                className="text-sm font-bold uppercase tracking-wide"
+                style={{ color }}
+              >
+                {label}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              {label === 'accelerating'
+                ? 'Your training is improving faster than last week. Keep this momentum.'
+                : label === 'stalling'
+                ? 'Your improvement has slowed down. One focused session can turn this around.'
+                : 'Holding steady — your key metrics are stable week over week.'}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-gray-400 font-medium mb-1">
+              {identityLabel ? `Your ${identityLabel} Pace` : 'Your Pace'}
+            </p>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Your Pace will start showing trends after your second week of training.
+              Keep logging sessions — we're recording your baseline.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Divider + bottom row: Training Score + See Why */}
+      <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
+        {/* Training Score pill */}
+        {score != null ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Training Score</span>
+            <span className="text-sm font-bold text-gray-700">{score}</span>
+            {scoreDelta != null && scoreDelta !== 0 && (
+              <span className={`text-[11px] font-semibold ${scoreDelta > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {scoreDelta > 0 ? '+' : ''}{scoreDelta}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Training Score</span>
+            <span className="text-sm text-gray-300">—</span>
+          </div>
+        )}
+
+        {/* See why link — the most important pixel on the card */}
+        {hasPace && onViewMetric && (
+          <button
+            onClick={() => onViewMetric('pace-audit')}
+            className="text-xs font-semibold text-accent flex items-center gap-1 hover:underline"
+          >
+            See why
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GoalRing({ current, goal, size = 56 }) {
   const radius = (size - 6) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -102,16 +210,18 @@ function InsightsCard({ insights }) {
   );
 }
 
-// ── Weekly Pace Card — the "Sunday night pull" ──────────────
+// ── WeeklyPaceCard — superseded by PaceHeroCard above. Kept on disk for
+// easy reversal; no longer rendered anywhere in the Dashboard. ──────────
+// eslint-disable-next-line no-unused-vars
+const _PACE_COLORS_OLD = { accelerating: '#16A34A', steady: '#D97706', stalling: '#DC2626' };
 
-const PACE_COLORS = { accelerating: '#16A34A', steady: '#D97706', stalling: '#DC2626' };
-
+// eslint-disable-next-line no-unused-vars
 function WeeklyPaceCard({ sessions, idpGoals = [], onNavigate, onViewMetric, playerIdentity, position }) {
   const pace = useMemo(() => computePace(sessions, 4, position), [sessions, position]);
   if (!pace) return null;
 
   const { overall, metrics, recommendation } = pace;
-  const color = PACE_COLORS[overall.label] || PACE_COLORS.steady;
+  const color = _PACE_COLORS_OLD[overall.label] || _PACE_COLORS_OLD.steady;
 
   // Build narrative lines from metric changes
   const lines = useMemo(() => {
@@ -323,6 +433,12 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
 
   // (Removed: quickCompare, idpActivity — moved to MetricTrendView)
 
+  // Compute pace for the hero card — must be before any early returns (Rules of Hooks)
+  const pace = useMemo(
+    () => computePace(sessions, 4, (Array.isArray(settings.position) && settings.position[0]) || 'General'),
+    [sessions, settings.position]
+  );
+
   // Empty state: show daily plan + prompt
   if (sessions.length === 0) {
     return (
@@ -361,80 +477,33 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
     .slice(0, 5);
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-3xl mx-auto">
       <h1 className="text-3xl text-accent tracking-tight text-center font-logo italic">Composed</h1>
 
       {/* Date Browser */}
       <DateBrowser assignedPlans={assignedPlans} trainingPlans={trainingPlans} sessions={sessions} idpGoals={idpGoals} />
 
-      {/* Getting Started checklist removed — replaced by contextual prompts */}
+      {/* ── 1. PACE HERO — the first thing the player sees ────────── */}
+      <PaceHeroCard
+        pace={pace}
+        trainingScore={trainingScore}
+        playerIdentity={settings.playerIdentity}
+        onViewMetric={onViewMetric}
+      />
 
-      {/* Training Score Hero */}
-      {(() => {
-        if (!trainingScore) return (
-          <div className="flex gap-4 items-start">
-            <div className="flex-1">
-              <WeeklyReport sessions={sessions} matches={[]} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
-            </div>
-            <div className="flex flex-col items-center pt-4">
-              <GoalRing current={getCurrentWeekSessionCount(sessions)} goal={weeklyGoal} />
-              <p className="text-[10px] text-gray-400 mt-1">Weekly Goal</p>
-            </div>
-          </div>
-        );
-        return (
-          <>
-            <div className="bg-surface rounded-xl border border-gray-100 shadow-card p-5" style={{ animation: 'fadeSlideUp 0.3s ease-out' }}>
-              <div className="flex items-center gap-6">
-                <TrainingScoreRing score={trainingScore.score} prevScore={trainingScore.prevScore} delta={trainingScore.delta} />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700">Training Score</h3>
-                      <p className="text-[10px] text-gray-400">Composite performance rating</p>
-                    </div>
-                    <GoalRing current={getCurrentWeekSessionCount(sessions)} goal={weeklyGoal} size={48} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                    {Object.entries(trainingScore.breakdown).map(([key, { value, delta }]) => (
-                      <div key={key} className="flex items-center gap-1">
-                        <span className="text-[10px] text-gray-400">{BREAKDOWN_LABELS[key]}</span>
-                        <span className={`text-[10px] font-semibold ${value == null ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {value == null ? '—' : value}
-                          {delta != null && delta !== 0 && (
-                            <span className={`ml-0.5 ${delta > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {delta > 0 ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Weekly Report — only shown alongside Training Score hero */}
-            <WeeklyReport sessions={sessions} matches={[]} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
-          </>
-        );
-      })()}
-
-      {/* Match Day Card — surfaces scouting when match is near */}
-      <MatchDayCard scoutingReports={scoutingReports} onNavigate={onNavigate} onStartPlan={onStartPlan} />
-
-      {/* Weekly Pace Card — the Sunday night pull.
-          settings.position is now a multi-select array; pace weighting still takes a
-          single string, so pass the primary (first) position. Blending across
-          positions is a v2 improvement. */}
-      <WeeklyPaceCard sessions={sessions} idpGoals={idpGoals} onNavigate={onNavigate} onViewMetric={onViewMetric} playerIdentity={settings.playerIdentity} position={(Array.isArray(settings.position) && settings.position[0]) || 'General'} />
-
-      {/* Welcome Back (3+ days inactive) */}
+      {/* Welcome Back (3+ days inactive) — shows right after hero if triggered */}
       <WelcomeBack sessions={sessions} playerName={settings.playerName} onStartSession={() => onNavigate?.('log')} />
 
-      {/* Daily Plan */}
+      {/* ── 2. TODAY'S TRAINING ───────────────────────────────────── */}
       <DailyPlanCard sessions={sessions} idpGoals={idpGoals} onStartPlan={onStartPlan} onStartManual={onStartManual} assignedPlans={assignedPlans} activeProgram={activeProgram} position={(Array.isArray(settings.position) && settings.position[0]) || 'General'} playerIdentity={settings.playerIdentity} />
 
-      {/* Recent Sessions */}
+      {/* ── 3. THIS WEEK SUMMARY ──────────────────────────────────── */}
+      <WeeklyReport sessions={sessions} matches={[]} personalRecords={personalRecords} weeklyGoal={weeklyGoal} />
+
+      {/* ── 4. COACH'S NOTES (AI insights) — before Recent Sessions ── */}
+      {insights.length > 0 && <InsightsCard insights={insights} />}
+
+      {/* ── 5. RECENT SESSIONS ─────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700">Recent Sessions</h3>
@@ -496,10 +565,14 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
         )}
       </div>
 
-      {/* ── WHOOP-Style Compact Metrics ── */}
+      {/* ── REMAINING SECTIONS (below the fold) ───────────────────── */}
+
+      {/* Match Day Card — conditional, rare */}
+      <MatchDayCard scoutingReports={scoutingReports} onNavigate={onNavigate} onStartPlan={onStartPlan} />
+
+      {/* Compact metric sections */}
       {sessions.length > 0 && (
         <>
-          {/* Your Numbers */}
           <MetricSection title="Your Numbers">
             <MetricRow label="Total Sessions" value={totalSessions} onClick={() => onViewMetric?.('total-sessions')} />
             <MetricRow label="Streak" value={`${streak} day${streak !== 1 ? 's' : ''}`} onClick={() => onViewMetric?.('streak')} />
@@ -517,7 +590,6 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
             })()}
           </MetricSection>
 
-          {/* Performance */}
           <MetricSection title="Performance">
             <MetricRow
               label="Shot Accuracy"
@@ -559,7 +631,6 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
             )}
           </MetricSection>
 
-          {/* Development */}
           <MetricSection title="Development">
             <MetricRow
               label="Weak Foot"
@@ -591,7 +662,6 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
             )}
           </MetricSection>
 
-          {/* Load & Recovery */}
           {sessions.length >= 2 && (
             <MetricSection title="Load & Recovery">
               <MetricRow
@@ -624,15 +694,8 @@ export function Dashboard({ sessions, personalRecords, onViewSession, idpGoals =
               )}
             </MetricSection>
           )}
-
-          {/* Insights */}
-          {insights.length > 0 && <InsightsCard insights={insights} />}
         </>
       )}
-
-      {/* Join a Coach + Activity Feed moved to the Community tab exclusively —
-          they used to be duplicated here, cluttering Home with widgets that
-          have nothing to do with today's training. */}
 
     </div>
   );
