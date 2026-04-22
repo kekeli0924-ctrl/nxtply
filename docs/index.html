@@ -782,6 +782,10 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
 /* Ask Composed: enlarge the chatbox phone since the copy side is minimal */
 #ask .scout-grid { grid-template-columns: 0.6fr 1.4fr; align-items: center; }
 #ask .scout-visual .phone-shell { max-width: 30rem; }
+
+/* Scout: bigger phones so the detail views (formation, tactics) are legible */
+.scout-screens { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)) !important; }
+.scout-screens .app-shot { max-width: 20rem; }
 </style>
 </head>
 <body>
@@ -996,12 +1000,38 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
     <div class="mono" style="margin-bottom: 1rem;">04 &nbsp;·&nbsp; Pre-match scout</div>
     <h2 class="h-lead" style="max-width: 20ch;">A scouting report on the next opponent.</h2>
 
-    <div class="scout-grid">
-      <div class="scout-visual">
+    <div class="app-screens scout-screens">
+      <figure class="app-shot">
+        <div class="shot-tag">Reports</div>
         <div class="phone-shell phone-real">
-          <img src="assets/app-scout.png" alt="Scouting Reports screen listing FC Barcelona, FC Thunder, and FC Lightning with Ready and Failed status tags" loading="lazy">
+          <img src="assets/app-scout.png" alt="Scouting Reports list view showing FC Barcelona, FC Thunder, and FC Lightning with Ready and Failed status tags" loading="lazy">
         </div>
-      </div>
+        <figcaption><strong>Reports.</strong> The opponents you've scouted, one tap away from the brief.</figcaption>
+      </figure>
+
+      <figure class="app-shot">
+        <div class="shot-tag">Detail</div>
+        <div class="phone-shell phone-real">
+          <img src="assets/app-scout-detail-top.png" alt="FC Barcelona detail view showing the 4-3-3 formation pitch diagram and Key Players to Watch cards for Baba Kourama and Orian Goren" loading="lazy">
+        </div>
+        <figcaption><strong>Formation.</strong> The opponent's shape and the specific players to watch.</figcaption>
+      </figure>
+
+      <figure class="app-shot">
+        <div class="shot-tag">Tactics</div>
+        <div class="phone-shell phone-real">
+          <img src="assets/app-scout-detail-mid.png" alt="FC Barcelona tactical brief showing Strengths, Weaknesses, and a numbered What To Do list" loading="lazy">
+        </div>
+        <figcaption><strong>Brief.</strong> Strengths, weaknesses, and a numbered what-to-do the coach can hand to the squad.</figcaption>
+      </figure>
+
+      <figure class="app-shot">
+        <div class="shot-tag">Your plan</div>
+        <div class="phone-shell phone-real">
+          <img src="assets/app-scout-detail-bottom.png" alt="Your Game Plan section for FC Barcelona with accuracy, pass accuracy, weak foot, and avg intensity stats based on the player's last 10 sessions" loading="lazy">
+        </div>
+        <figcaption><strong>Your plan.</strong> Accuracy, pass accuracy, weak foot, intensity — cross-referenced against the opponent.</figcaption>
+      </figure>
     </div>
   </div>
 </section>
