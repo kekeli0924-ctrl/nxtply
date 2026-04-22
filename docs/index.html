@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Composed — Project Showcase</title>
-<meta name="description" content="A soccer training companion that turns every solo session into a position-weighted score coaches can act on and parents can trust. Built with React 19, Express 5, SQLite, and Gemini.">
+<meta name="description" content="A web app that turns every solo soccer training session into a position-weighted score. Built with React 19, Express 5, SQLite, and Gemini.">
 <meta name="theme-color" content="#FAFAF8">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='74' font-size='84' font-family='serif' font-style='italic' font-weight='500' fill='%231E3A5F' text-anchor='middle'>C</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -795,8 +795,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
     </h1>
     <p class="hero-subhead">
       A web app that turns every solo training session — backyard, wall, empty park — into a
-      <em>position-weighted</em> score <strong>coaches can act on</strong> and
-      <strong>parents can trust.</strong>
+      <em>position-weighted</em> score.
     </p>
 
     <div class="hero-strip">
@@ -868,7 +867,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
       <div class="step">
         <div class="step-num">05</div>
         <div class="step-body">
-          <h3>One revocable link proves it</h3>
+          <h3>Coach shares a revocable link</h3>
           <p>Coach generates a <code>/r/:slug</code> URL with a frozen snapshot. Parent opens it on any device — no app, no account, no login. One click revokes it and anyone who still has the URL sees a "no longer available" page, not a crash.</p>
           <span class="file-ref">routes/digests.js &nbsp;·&nbsp; PublicDigest.jsx</span>
         </div>
@@ -891,9 +890,6 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
         kids who did nothing. Existing apps flatten everyone into one generic "score" — a
         striker's and a goalkeeper's reduced to the same number.
       </p>
-      <div class="callout">
-        Measurement that doesn't know what position you play isn't measurement — it's noise.
-      </div>
     </div>
   </div>
 </section>
@@ -904,7 +900,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
 <section id="pace" class="enter">
   <div class="wrap">
     <div class="mono" style="margin-bottom: 1rem;">04 &nbsp;·&nbsp; The core idea</div>
-    <h2 class="h-lead" style="margin-bottom: 1.5rem;">One score per player. <em>Recomputed for who they actually are.</em></h2>
+    <h2 class="h-lead" style="margin-bottom: 1.5rem;">A single score, weighted by position.</h2>
     <p class="lede" style="margin-bottom: 3rem;">
       <strong>Pace</strong> is a 0&ndash;100 score computed from five sub-signals — shooting,
       passing, consistency, duration, load — weighted differently by position. Pick a role below
@@ -970,9 +966,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
     <div class="mono" style="margin-bottom: 1rem;">05 &nbsp;·&nbsp; The output</div>
     <h2 class="h-lead">What the app <em>actually</em> looks like.</h2>
     <p class="lede" style="margin-top: 1rem;">
-      Live screens, captured straight from the dev server. Warm stone background, navy ink,
-      gold accents — <strong>one number, one verb, one curve</strong> per view. No feature
-      matrix, no dopamine maze.
+      Captured from the running dev server. Warm stone background, navy ink, gold accents.
     </p>
 
     <div class="app-screens">
@@ -989,7 +983,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
         <div class="phone-shell phone-real">
           <img src="assets/app-player-pace.png" alt="Player Pace detail view showing the Scorer's Pace dial and diagnostic copy" loading="lazy">
         </div>
-        <figcaption><strong>Pace detail.</strong> Tap the number and it defends itself — "Players like you" percentile, what dropped, what to do.</figcaption>
+        <figcaption><strong>Pace detail.</strong> "Players like you" percentile, what dropped, what to do next.</figcaption>
       </figure>
 
       <figure class="app-shot">
@@ -1017,7 +1011,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
 <section id="stack" class="enter">
   <div class="wrap">
     <div class="mono" style="margin-bottom: 1rem;">06 &nbsp;·&nbsp; Built with</div>
-    <h2 class="h-lead">Boring, reliable, <em>exact.</em></h2>
+    <h2 class="h-lead">The stack.</h2>
     <p class="lede" style="margin-top: 1rem;">
       Every dependency pulls its weight. Versions pinned. No framework-of-the-week.
     </p>
@@ -1122,7 +1116,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
         <p>
           22-char base64url slug, frozen snapshot stored server-side, no-auth public route. Coach
           revokes and anyone who still has the URL sees a "no longer available" page — not a
-          crash, not a 404. The single most important feature for parent-side trust.
+          crash, not a 404.
         </p>
         <span class="file">server/routes/digests.js &nbsp;·&nbsp; 15 KB</span>
       </div>
@@ -1132,7 +1126,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
         <p>
           The game-plan generator runs deterministic rules (opponent style detection, warm-up
           selection via a seeded PRNG) before falling back to Gemini. Same opponent &rarr; same
-          warm-up. Reliability doesn't depend on the model being available.
+          warm-up.
         </p>
         <span class="file">services/gamePlanGenerator.js &nbsp;·&nbsp; 451 lines</span>
       </div>
@@ -1146,7 +1140,7 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
 <section id="numbers" class="enter">
   <div class="wrap">
     <div class="mono" style="margin-bottom: 1rem;">08 &nbsp;·&nbsp; By the numbers</div>
-    <h2 class="h-lead">Scope, <em>not vibes.</em></h2>
+    <h2 class="h-lead">The codebase.</h2>
 
     <div class="numbers">
       <div class="num-cell"><div class="big">77</div><div class="cap">Components</div></div>
@@ -1162,38 +1156,8 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
     <p class="lede" style="margin-top: 2.5rem;">
       Identity archetypes — Scorer, Speedster, Playmaker, Engine, Rock — each reshape the
       vocabulary the app uses for the same player. A striker who picks <em>Scorer</em> sees
-      "Scorer's Pace." A midfielder who picks <em>Engine</em> sees "Engine's Pace." Same math,
-      different story.
+      "Scorer's Pace." A midfielder who picks <em>Engine</em> sees "Engine's Pace."
     </p>
-  </div>
-</section>
-
-<hr class="rule">
-
-<!-- ══ WHAT I LEARNED ══════════════════════════════════════════════ -->
-<section id="learned" class="enter">
-  <div class="wrap two-col">
-    <div class="mono">09 &nbsp;·&nbsp; Takeaways</div>
-    <div class="copy">
-      <h2 class="h-lead">What I'd do again. <em>And what I'd change.</em></h2>
-      <p class="lede">
-        The hardest product decision wasn't a feature — it was figuring out that a
-        <strong>number is only useful if you can defend how it was computed.</strong> Adding the
-        Pace audit view (tap the number, see the exact sub-signals and weights) turned a black
-        box into something a coach can argue with. That one view did more for trust than any
-        marketing copy.
-      </p>
-      <p class="lede">
-        Biggest regret: not starting with multi-user isolation from day one. Ten tables still
-        have <code>user_id INTEGER DEFAULT 1</code> leftover from the single-user prototype —
-        every query writes a real ID, but the default is a latent footgun. Refactor is queued.
-      </p>
-      <p class="lede">
-        Next up: a manual "Link Google to existing account" flow for the typed-unverified-email
-        case, an email password reset, and an eval harness for the AI chat surface before I
-        promote it out of Labs.
-      </p>
-    </div>
   </div>
 </section>
 
