@@ -984,12 +984,6 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
 
     <div class="scout-grid">
       <div class="scout-copy">
-        <p class="lede">
-          Ask questions in plain English — <em>"how has my shooting improved this month?"</em>
-          — and the answer is grounded in the sessions, matches, and numbers from the player's
-          own account, not a generic template. The reply in the screenshot cites a specific
-          session date and shot count.
-        </p>
         <span class="file-ref">components/AskComposed.jsx &nbsp;·&nbsp; routes/aiChat.js &nbsp;·&nbsp; @google/genai</span>
       </div>
       <div class="scout-visual">
@@ -1121,57 +1115,27 @@ footer .logo em { color: var(--gold-dark); font-style: italic; }
         <span class="desc">Installable from a link. Offline-capable. No app store.</span>
       </div>
     </div>
-  </div>
-</section>
 
-<hr class="rule">
+    <h3 class="h-section" style="margin-top: clamp(3rem, 6vw, 5rem); margin-bottom: 0.5rem;">External APIs</h3>
+    <p class="lede" style="margin-bottom: 2rem;">
+      Three external services the app talks to. Everything else runs on the box.
+    </p>
 
-<!-- ══ ENGINEERING ═════════════════════════════════════════════════ -->
-<section id="engineering" class="enter">
-  <div class="wrap">
-    <div class="mono" style="margin-bottom: 1rem;">08 &nbsp;·&nbsp; Interesting bits</div>
-    <h2 class="h-lead">Four things I'm <em>glad</em> I spent the time on.</h2>
-
-    <div class="eng-grid">
-      <div class="eng-card">
-        <div class="tag">Math</div>
-        <h3>Position-weighted scoring</h3>
-        <p>
-          Six position tables. Each row is five weights that sum to 1.0. Re-tune any row and the
-          whole app re-ranks. The calculator is a pure function of &lt;sessions, position&gt; —
-          cheap to test, easy to audit.
-        </p>
-        <span class="file">src/utils/pace.js &nbsp;·&nbsp; 237 lines</span>
+    <div class="stack-grid">
+      <div class="stack-item">
+        <span class="name">Google Gemini API</span>
+        <span class="ver">2.5 Pro / Flash</span>
+        <span class="desc">Video frame analysis and the Ask Composed chatbot. Automatic fallback from Pro to Flash on rate-limit or quota.</span>
       </div>
-      <div class="eng-card">
-        <div class="tag">Client</div>
-        <h3>In-browser video compression</h3>
-        <p>
-          FFmpeg compiled to WebAssembly. A phone clip is H.264-compressed before the first byte
-          leaves the device — kinder to data plans, faster to upload. Tus makes dropped uploads
-          resume instead of restart.
-        </p>
-        <span class="file">@ffmpeg/ffmpeg + @tus/server</span>
+      <div class="stack-item">
+        <span class="name">Google Identity Services</span>
+        <span class="ver">ID-token flow</span>
+        <span class="desc">Sign in with Google directly in the browser. No OAuth redirect, no callback URL, no client secret.</span>
       </div>
-      <div class="eng-card">
-        <div class="tag">Trust</div>
-        <h3>Revocable public digests</h3>
-        <p>
-          22-char base64url slug, frozen snapshot stored server-side, no-auth public route. Coach
-          revokes and anyone who still has the URL sees a "no longer available" page — not a
-          crash, not a 404.
-        </p>
-        <span class="file">server/routes/digests.js &nbsp;·&nbsp; 15 KB</span>
-      </div>
-      <div class="eng-card">
-        <div class="tag">AI</div>
-        <h3>Rules-based first, AI second</h3>
-        <p>
-          The game-plan generator runs deterministic rules (opponent style detection, warm-up
-          selection via a seeded PRNG) before falling back to Gemini. Same opponent &rarr; same
-          warm-up.
-        </p>
-        <span class="file">services/gamePlanGenerator.js &nbsp;·&nbsp; 451 lines</span>
+      <div class="stack-item">
+        <span class="name">Manus API</span>
+        <span class="ver">v2</span>
+        <span class="desc">Async task pipeline used by the deep opponent-scouting route. The coach kicks off a task; it resolves when the model finishes.</span>
       </div>
     </div>
   </div>
