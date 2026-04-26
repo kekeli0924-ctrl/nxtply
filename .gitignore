@@ -24,10 +24,13 @@ server/data
 *.sln
 *.sw?
 
-# Claude Code
+# Claude Code — track tooling, ignore ephemeral state
 .claude/*
 !.claude/agents/
 !.claude/agents/**
+!.claude/commands/
+!.claude/commands/**
+!.claude/*.md
 
 # PWA dev artifacts
 dev-dist/
