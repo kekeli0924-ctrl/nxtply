@@ -25,7 +25,9 @@ server/data
 *.sw?
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/agents/**
 
 # PWA dev artifacts
 dev-dist/
